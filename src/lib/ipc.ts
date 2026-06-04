@@ -99,3 +99,89 @@ export function stopMiner(id: string): Promise<void> {
 export function listRunning(): Promise<RunningMiner[]> {
   return invoke<RunningMiner[]>("list_running");
 }
+
+// ---- P2: coins, wallet validation, profiles, pools ------------------------
+
+export interface PoolDef {
+  name: string;
+  host: string;
+  port: number;
+  tls: boolean;
+  fee_pct: number;
+  user_template: string;
+}
+
+export interface CoinInfo {
+  id: string;
+  name: string;
+  algo: Algo;
+  monitor_only: boolean;
+  block_time_secs: number;
+  default_pools: PoolDef[];
+}
+
+export interface PoolConfig {
+  host: string;
+  port: number;
+  user_template?: string;
+  pass?: string;
+  tls?: boolean;
+}
+
+export interface Profile {
+  name: string;
+  /** Public receiving ADDRESS only — never a private key. */
+  wallet: string;
+  worker?: string;
+  threads?: number | null;
+  pool: PoolConfig;
+  fallback_pools?: PoolConfig[];
+}
+
+/** Result of validating a wallet address (checksum-verified in Rust). */
+export interface AddressCheck {
+  valid: boolean;
+  kind: string | null;
+  reason: string | null;
+}
+
+export interface PoolTestResult {
+  reachable: boolean;
+  latency_ms: number | null;
+  error: string | null;
+}
+
+/** All supported coins. */
+export function listCoins(): Promise<CoinInfo[]> {
+  return invoke<CoinInfo[]>("list_coins");
+}
+
+/** The default miner the app picks for a coin (fee-free open source first). */
+export function resolveDefaultMiner(coin: string): Promise<MinerInfo | null> {
+  return invoke<MinerInfo | null>("resolve_default_miner", { coin });
+}
+
+/** Validate a wallet address for a coin (checksum, not just regex). */
+export function validateAddress(coin: string, address: string): Promise<AddressCheck> {
+  return invoke<AddressCheck>("validate_address", { coin, address });
+}
+
+/** Persist a profile. Rejects an invalid wallet address with a reason. */
+export function saveProfile(coin: string, profile: Profile): Promise<void> {
+  return invoke<void>("save_profile", { coin, profile });
+}
+
+/** Load saved profiles for a coin. */
+export function loadProfiles(coin: string): Promise<Profile[]> {
+  return invoke<Profile[]>("load_profiles", { coin });
+}
+
+/** Add a user-defined pool for a coin. */
+export function addCustomPool(coin: string, pool: PoolConfig): Promise<void> {
+  return invoke<void>("add_custom_pool", { coin, pool });
+}
+
+/** Probe a pool endpoint's reachability before relying on it. */
+export function testPool(pool: PoolConfig): Promise<PoolTestResult> {
+  return invoke<PoolTestResult>("test_pool", { pool });
+}

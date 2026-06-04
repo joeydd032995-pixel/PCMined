@@ -8,20 +8,28 @@
 //! `run()` wires those modules into the Tauri application.
 
 pub mod commands;
+pub mod config;
 pub mod events;
 pub mod miner;
 pub mod supervisor;
+pub mod wallet;
 
+use std::sync::Mutex as StdMutex;
+
+use tauri::Manager;
 use tokio::sync::Mutex;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
+use config::store::ConfigStore;
 use supervisor::Supervisor;
 
 /// Shared application state managed by Tauri. The supervisor sits behind an
 /// async mutex so command handlers can hold it across `.await` points (e.g.
-/// while reaping a stopped child).
+/// while reaping a stopped child); the config store uses a plain mutex since
+/// its operations are synchronous.
 pub struct AppState {
     pub supervisor: Mutex<Supervisor>,
+    pub config: StdMutex<ConfigStore>,
 }
 
 /// Initialize structured logging. Idempotent-safe for tests via `try_init`.
@@ -46,12 +54,30 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
-        .manage(AppState {
-            supervisor: Mutex::new(Supervisor::new()),
+        .setup(|app| {
+            // Resolve the per-user config dir and load (migrating) the config.
+            let config_path = app
+                .path()
+                .app_config_dir()
+                .map(|d| d.join("config.json"))
+                .unwrap_or_else(|_| std::path::PathBuf::from("config.json"));
+            tracing::info!(?config_path, "loading config");
+            app.manage(AppState {
+                supervisor: Mutex::new(Supervisor::new()),
+                config: StdMutex::new(ConfigStore::load(config_path)),
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::list_miners,
+            commands::list_coins,
+            commands::resolve_default_miner,
+            commands::validate_address,
+            commands::save_profile,
+            commands::load_profiles,
+            commands::add_custom_pool,
+            commands::test_pool,
             commands::start_miner,
             commands::confirm_fee_and_start,
             commands::stop_miner,
