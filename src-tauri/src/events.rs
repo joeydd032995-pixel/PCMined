@@ -50,3 +50,12 @@ pub struct StatusEvent {
     pub state: MinerState,
     pub detail: Option<String>,
 }
+
+/// A found block (best share reached network difficulty) — the rare win.
+#[derive(Debug, Clone, Serialize)]
+pub struct BlockFoundEvent {
+    pub miner_id: String,
+    pub coin: String,
+    pub share_diff: f64,
+    pub network_diff: f64,
+}

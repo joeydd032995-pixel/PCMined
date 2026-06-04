@@ -160,6 +160,41 @@ pub async fn detect_hardware() -> crate::hardware::HardwareInfo {
     crate::hardware::detect().await
 }
 
+/// Report a found block: broadcast `miner://block-found` and fire a desktop
+/// notification (the rare win). The dashboard calls this when a live best-share
+/// reaches network difficulty; `simulate_block_found` exercises the same path.
+#[tauri::command]
+pub fn report_block_found(
+    app: AppHandle,
+    coin: String,
+    share_diff: f64,
+    network_diff: f64,
+) -> Result<(), String> {
+    use crate::events::BlockFoundEvent;
+    use tauri_plugin_notification::NotificationExt;
+
+    let payload = BlockFoundEvent {
+        miner_id: format!("{coin}:block"),
+        coin: coin.clone(),
+        share_diff,
+        network_diff,
+    };
+    let _ = app.emit(channel::BLOCK_FOUND, &payload);
+    let _ = app
+        .notification()
+        .builder()
+        .title("🎉 Block found!")
+        .body(format!("{} — share diff {:.3e} reached network difficulty", coin.to_uppercase(), share_diff))
+        .show();
+    Ok(())
+}
+
+/// Fire a test block-found alert to verify the notification/tray path.
+#[tauri::command]
+pub fn simulate_block_found(app: AppHandle, coin: String) -> Result<(), String> {
+    report_block_found(app, coin, 1.0e15, 1.0e15)
+}
+
 /// Suggest a thread count for a CPU-mined coin given detected hardware.
 #[tauri::command]
 pub fn suggest_threads(coin: String, physical_cores: u32, total_memory_mb: u64) -> u32 {

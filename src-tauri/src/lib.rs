@@ -71,6 +71,7 @@ pub fn run() {
                 config: StdMutex::new(ConfigStore::load(config_path)),
                 network: NetworkApi::new(),
             });
+            build_tray(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -87,11 +88,63 @@ pub fn run() {
             commands::detect_hardware,
             commands::suggest_threads,
             commands::start_monitor,
+            commands::report_block_found,
+            commands::simulate_block_found,
             commands::start_miner,
             commands::confirm_fee_and_start,
             commands::stop_miner,
             commands::list_running,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Graceful shutdown: reap every miner before exit so nothing is
+            // orphaned. Webhooks/CI never deliver this — it must be wired here.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state = app.state::<AppState>();
+                tauri::async_runtime::block_on(async {
+                    let mut sup = state.supervisor.lock().await;
+                    sup.stop_all(app).await;
+                });
+                tracing::info!("all miners stopped on exit");
+            }
+        });
+}
+
+/// Build the system tray: quick actions + single-click to show the window.
+fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+    use tauri::tray::TrayIconBuilder;
+
+    let show = MenuItemBuilder::with_id("show", "Show dashboard").build(app)?;
+    let stop_all = MenuItemBuilder::with_id("stop_all", "Stop all miners").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+    let menu = MenuBuilder::new(app).items(&[&show, &stop_all]).separator().item(&quit).build()?;
+
+    let mut builder = TrayIconBuilder::with_id("main-tray")
+        .tooltip("Lottery Ticket Terminal")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "quit" => app.exit(0),
+            "show" => {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+            "stop_all" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app.state::<AppState>();
+                    let mut sup = state.supervisor.lock().await;
+                    sup.stop_all(&app).await;
+                });
+            }
+            _ => {}
+        });
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+    builder.build(app)?;
+    Ok(())
 }

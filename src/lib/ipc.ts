@@ -247,3 +247,19 @@ export function suggestThreads(
 export function startMonitor(coin: string, deviceUrl: string): Promise<string> {
   return invoke<string>("start_monitor", { coin, deviceUrl });
 }
+
+// ---- P5: block-found alerts -----------------------------------------------
+
+/** Report a found block: broadcasts the event and fires a desktop notification. */
+export function reportBlockFound(
+  coin: string,
+  shareDiff: number,
+  networkDiff: number,
+): Promise<void> {
+  return invoke<void>("report_block_found", { coin, shareDiff, networkDiff });
+}
+
+/** Fire a test block-found alert (verifies the notification/tray path). */
+export function simulateBlockFound(coin: string): Promise<void> {
+  return invoke<void>("simulate_block_found", { coin });
+}
