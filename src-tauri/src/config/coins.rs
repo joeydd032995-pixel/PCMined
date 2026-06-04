@@ -74,6 +74,23 @@ pub fn coin(id: &str) -> Option<&'static CoinInfo> {
     COINS.iter().find(|c| c.id == id)
 }
 
+/// Nominal current block reward (coin units) used as a fallback when a live
+/// source is unavailable. These drift (halvings, deflation schedules) — a live
+/// fetcher overrides them where one exists (e.g. BTC reward from tip height).
+pub fn nominal_block_reward(coin_id: &str) -> f64 {
+    match coin_id.to_ascii_lowercase().as_str() {
+        "btc" => 3.125,
+        "ltc" => 6.25,
+        "doge" => 10_000.0,
+        "xmr" => 0.6,
+        "rvn" => 2_500.0,
+        "etc" => 2.56,
+        "kas" => 75.0,
+        "erg" => 3.0,
+        _ => 0.0,
+    }
+}
+
 /// Estimated network hashrate (H/s) implied by a difficulty and block time.
 /// The conversion is algo-family specific — kept here, never global.
 pub fn network_hashrate_from_difficulty(algo: Algo, difficulty: f64, block_time_secs: f64) -> f64 {

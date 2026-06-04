@@ -53,9 +53,35 @@ Under active construction, phase by phase:
 
 - **P0 — Scaffold** ✅ Tauri 2 + React/TS app, dark theme, typed IPC/events, `ping` round-trip,
   least-privilege capabilities.
-- P1 — Process engine + telemetry (cpuminer-opt, lolMiner)
-- P2 — Config / profiles / wallet checksum validation
-- P3 — Lottery dashboard + live network APIs
-- P4–P7 — Multi-miner/hardware, reliability/tray, binary verification/packaging, polish/docs
+- **P1 — Process engine + telemetry** ✅ `MinerAdapter` trait, `tokio::process` spawn/poll/reap,
+  cpuminer-opt (TcpText, 0%) + lolMiner (HTTP, ~1%) adapters, supervisor with dev-fee gate.
+- **P2 — Config / profiles / wallet validation** ✅ versioned atomic config store, coin + miner
+  registries (`resolve_default_miner`), checksum-verified address validation for 8 coins.
+- **P3 — Lottery dashboard + network APIs** ✅ `network_api.rs` (BTC live via mempool.space,
+  graceful degradation + stale marking), lottery math, log-scale `LotteryBar`, uPlot hashrate
+  chart, fee-badged miner cards.
+- P4–P7 — Multi-miner/hardware + monitor-only, reliability/tray, binary verification/packaging,
+  polish/docs (not yet implemented).
 
-See `MinerAdapter` + `MinerRegistry` (added in P1/P2) for the coin/miner extension points.
+### Extending: add a coin or miner
+
+The roster is data-driven. To add a miner: implement one `MinerAdapter`
+(`src-tauri/src/miner/adapters/`) and add one entry to the registry
+(`src-tauri/src/config/miners.rs`). To add a coin: add a `CoinInfo` to
+`src-tauri/src/config/coins.rs` (algo, default pools, difficulty→hashrate) and an address
+validator branch in `src-tauri/src/wallet.rs`.
+
+### Verifying this build
+
+This repository is developed in a headless CI environment, so the automated bar is:
+`cargo build` + `cargo clippy --all-targets -- -D warnings` clean, `cargo test` green
+(parsers, wallet checksums, fee resolution, lottery math, config round-trip), and frontend
+`npm run build` + `npm test` green.
+
+The following require a desktop with a display and are verified manually on your machine:
+
+- `npm run tauri dev` launches the window and the dashboard renders live BTC network data.
+- A real miner binary mines against a low-difficulty pool with ~2s telemetry updates and a clean
+  stop that leaves no orphaned process.
+- The log-scale lottery bar tracks the best share; expected-time-to-block matches the hand calc
+  (e.g. 6 TH/s vs ~1.024 ZH/s at 600s ≈ ~3,250 years).

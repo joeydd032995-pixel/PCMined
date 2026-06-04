@@ -1,19 +1,9 @@
-import { useEffect, useState } from "react";
-import { ping } from "./lib/ipc";
 import { Disclaimer } from "./components/Disclaimer";
+import { Dashboard } from "./routes/Dashboard";
 
-// P0 shell: proves the IPC boundary round-trips and renders the permanent
-// "lottery, not income" disclaimer that must remain visible app-wide.
+// App shell: header, the lottery dashboard, and the permanent "lottery, not
+// income / own hardware only" disclaimer that must remain visible app-wide.
 export default function App() {
-  const [pong, setPong] = useState<string>("…");
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    ping("hello from webview")
-      .then(setPong)
-      .catch((e) => setError(String(e)));
-  }, []);
-
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
       <header
@@ -32,25 +22,7 @@ export default function App() {
       </header>
 
       <main style={{ flex: 1, padding: 20 }}>
-        <section
-          className="mono"
-          style={{
-            background: "var(--bg-1)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            padding: 16,
-            maxWidth: 560,
-          }}
-        >
-          <div style={{ color: "var(--text-2)", fontSize: 12, marginBottom: 6 }}>
-            IPC boundary check (ping → Rust core → pong)
-          </div>
-          {error ? (
-            <div style={{ color: "var(--danger)" }}>error: {error}</div>
-          ) : (
-            <div style={{ color: "var(--accent)" }}>{pong}</div>
-          )}
-        </section>
+        <Dashboard />
       </main>
 
       <Disclaimer />

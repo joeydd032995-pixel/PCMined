@@ -11,6 +11,7 @@ pub mod commands;
 pub mod config;
 pub mod events;
 pub mod miner;
+pub mod network_api;
 pub mod supervisor;
 pub mod wallet;
 
@@ -21,6 +22,7 @@ use tokio::sync::Mutex;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use config::store::ConfigStore;
+use network_api::NetworkApi;
 use supervisor::Supervisor;
 
 /// Shared application state managed by Tauri. The supervisor sits behind an
@@ -30,6 +32,7 @@ use supervisor::Supervisor;
 pub struct AppState {
     pub supervisor: Mutex<Supervisor>,
     pub config: StdMutex<ConfigStore>,
+    pub network: NetworkApi,
 }
 
 /// Initialize structured logging. Idempotent-safe for tests via `try_init`.
@@ -65,6 +68,7 @@ pub fn run() {
             app.manage(AppState {
                 supervisor: Mutex::new(Supervisor::new()),
                 config: StdMutex::new(ConfigStore::load(config_path)),
+                network: NetworkApi::new(),
             });
             Ok(())
         })
@@ -78,6 +82,7 @@ pub fn run() {
             commands::load_profiles,
             commands::add_custom_pool,
             commands::test_pool,
+            commands::get_network_stats,
             commands::start_miner,
             commands::confirm_fee_and_start,
             commands::stop_miner,

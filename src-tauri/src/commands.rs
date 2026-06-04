@@ -8,12 +8,14 @@
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::config::coins::{self, CoinInfo};
 use crate::config::miners;
 use crate::config::profiles::{PoolConfig, Profile};
+use crate::events::channel;
 use crate::miner::MinerInfo;
+use crate::network_api::NetworkStats;
 use crate::supervisor::{RunningMiner, StartError, StartRequest};
 use crate::wallet::{self, AddressCheck};
 use crate::AppState;
@@ -150,4 +152,17 @@ pub async fn test_pool(pool: PoolConfig) -> PoolTestResult {
             error: Some("connection timed out".into()),
         },
     }
+}
+
+/// Fetch live network stats for a coin (cached/degrading) and broadcast them on
+/// the `network://difficulty` channel for any open dashboards.
+#[tauri::command]
+pub async fn get_network_stats(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    coin: String,
+) -> Result<NetworkStats, String> {
+    let stats = state.network.get(&coin).await;
+    let _ = app.emit(channel::DIFFICULTY, &stats);
+    Ok(stats)
 }

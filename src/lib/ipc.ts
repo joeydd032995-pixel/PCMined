@@ -185,3 +185,25 @@ export function addCustomPool(coin: string, pool: PoolConfig): Promise<void> {
 export function testPool(pool: PoolConfig): Promise<PoolTestResult> {
   return invoke<PoolTestResult>("test_pool", { pool });
 }
+
+// ---- P3: live network stats -----------------------------------------------
+
+/** Live (or cached/degraded) network state for the lottery odds view. */
+export interface NetworkStats {
+  coin: string;
+  difficulty: number;
+  network_hashrate: number;
+  block_reward: number;
+  block_time: number;
+  fetched_at: number;
+  /** True when this is cached/derived data, not a fresh live read. */
+  stale: boolean;
+}
+
+/**
+ * Fetch live network stats for a coin (cached, degrades gracefully). Also
+ * broadcast on the `network://difficulty` channel for other listeners.
+ */
+export function getNetworkStats(coin: string): Promise<NetworkStats> {
+  return invoke<NetworkStats>("get_network_stats", { coin });
+}
