@@ -195,6 +195,24 @@ pub fn simulate_block_found(app: AppHandle, coin: String) -> Result<(), String> 
     report_block_found(app, coin, 1.0e15, 1.0e15)
 }
 
+/// Download, SHA-256-verify, and install the pinned binary for a miner. Returns
+/// the installed path. Refuses to install (pre-exec) on a hash mismatch.
+#[tauri::command]
+pub async fn fetch_binary(state: State<'_, AppState>, miner_id: String) -> Result<String, String> {
+    let manager = crate::binaries::BinaryManager::new(state.binaries_dir.clone());
+    manager
+        .fetch(&miner_id)
+        .await
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+/// Check for available miner binary updates (pinned vs installed).
+#[tauri::command]
+pub fn check_updates(state: State<'_, AppState>) -> Vec<crate::binaries::UpdateInfo> {
+    crate::binaries::BinaryManager::new(state.binaries_dir.clone()).check_updates()
+}
+
 /// Suggest a thread count for a CPU-mined coin given detected hardware.
 #[tauri::command]
 pub fn suggest_threads(coin: String, physical_cores: u32, total_memory_mb: u64) -> u32 {

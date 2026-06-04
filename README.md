@@ -71,6 +71,29 @@ The roster is data-driven. To add a miner: implement one `MinerAdapter`
 `src-tauri/src/config/coins.rs` (algo, default pools, difficulty→hashrate) and an address
 validator branch in `src-tauri/src/wallet.rs`.
 
+### Packaging & signing
+
+Cross-platform installers are built by `.github/workflows/release.yml` (tauri-action
+matrix: macOS arm64 + x86_64, Linux, Windows) on a `v*` tag push. Code-signing and
+notarization run only when the corresponding repo secrets are present:
+
+- **macOS:** `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+  `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` (notarization via notarytool).
+- **Windows:** a code-signing certificate / Azure Trusted Signing wired into the
+  tauri-action step.
+
+These cannot run in a headless Linux CI container, so signed artifacts are produced by the
+release workflow (with secrets) or on a maintainer's machine.
+
+**Managed binaries & antivirus.** Miner binaries are downloaded on demand from official
+release URLs into a managed dir and **SHA-256-verified before they are ever made
+executable** (`binaries.rs`); a tampered or corrupt download is refused pre-exec. The pinned
+digests in `RELEASES` are placeholders (all-zero) and must be set to the real hash of each
+pinned version before enabling downloads — until then the manager fails closed. Mining
+binaries are frequently flagged by antivirus as false positives; we mitigate by signing +
+notarizing, downloading only from official sources, and never obfuscating. Document this for
+users so they can allowlist the app.
+
 ### Verifying this build
 
 This repository is developed in a headless CI environment, so the automated bar is:

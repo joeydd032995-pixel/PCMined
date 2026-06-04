@@ -7,6 +7,7 @@
 //! Logic lives in plain modules so it stays unit-testable without a display;
 //! `run()` wires those modules into the Tauri application.
 
+pub mod binaries;
 pub mod commands;
 pub mod config;
 pub mod events;
@@ -16,6 +17,7 @@ pub mod network_api;
 pub mod supervisor;
 pub mod wallet;
 
+use std::path::PathBuf;
 use std::sync::Mutex as StdMutex;
 
 use tauri::Manager;
@@ -34,6 +36,8 @@ pub struct AppState {
     pub supervisor: Mutex<Supervisor>,
     pub config: StdMutex<ConfigStore>,
     pub network: NetworkApi,
+    /// Managed directory for verified miner binaries.
+    pub binaries_dir: PathBuf,
 }
 
 /// Initialize structured logging. Idempotent-safe for tests via `try_init`.
@@ -66,10 +70,25 @@ pub fn run() {
                 .map(|d| d.join("config.json"))
                 .unwrap_or_else(|_| std::path::PathBuf::from("config.json"));
             tracing::info!(?config_path, "loading config");
+            let store = ConfigStore::load(config_path);
+            // Managed binaries dir: config override, else <app-data>/bin.
+            let binaries_dir = store
+                .config()
+                .global
+                .binaries_dir
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    app.path()
+                        .app_data_dir()
+                        .map(|d| d.join("bin"))
+                        .unwrap_or_else(|_| PathBuf::from("bin"))
+                });
             app.manage(AppState {
                 supervisor: Mutex::new(Supervisor::new()),
-                config: StdMutex::new(ConfigStore::load(config_path)),
+                config: StdMutex::new(store),
                 network: NetworkApi::new(),
+                binaries_dir,
             });
             build_tray(app.handle())?;
             Ok(())
@@ -90,6 +109,8 @@ pub fn run() {
             commands::start_monitor,
             commands::report_block_found,
             commands::simulate_block_found,
+            commands::fetch_binary,
+            commands::check_updates,
             commands::start_miner,
             commands::confirm_fee_and_start,
             commands::stop_miner,

@@ -263,3 +263,25 @@ export function reportBlockFound(
 export function simulateBlockFound(coin: string): Promise<void> {
   return invoke<void>("simulate_block_found", { coin });
 }
+
+// ---- P6: managed binaries -------------------------------------------------
+
+export interface UpdateInfo {
+  miner_id: string;
+  installed: string | null;
+  available: string;
+  update_available: boolean;
+}
+
+/**
+ * Download, SHA-256-verify, and install the pinned binary for a miner. Rejects
+ * (pre-exec) if the downloaded artifact's hash doesn't match the pinned digest.
+ */
+export function fetchBinary(minerId: string): Promise<string> {
+  return invoke<string>("fetch_binary", { minerId });
+}
+
+/** Check for available miner binary updates (pinned vs installed). */
+export function checkUpdates(): Promise<UpdateInfo[]> {
+  return invoke<UpdateInfo[]>("check_updates");
+}
