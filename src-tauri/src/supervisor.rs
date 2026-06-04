@@ -148,6 +148,11 @@ impl Supervisor {
         miners::all_miners()
     }
 
+    /// Buffered recent log lines for one instance (oldest first).
+    pub fn logs(&self, id: &str) -> Option<Vec<String>> {
+        self.instances.get(id).map(|i| i.logs())
+    }
+
     pub fn running(&self) -> Vec<RunningMiner> {
         self.instances
             .values()

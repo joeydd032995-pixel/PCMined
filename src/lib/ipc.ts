@@ -285,3 +285,35 @@ export function fetchBinary(minerId: string): Promise<string> {
 export function checkUpdates(): Promise<UpdateInfo[]> {
   return invoke<UpdateInfo[]>("check_updates");
 }
+
+// ---- P7: settings, logs, config backup/restore ----------------------------
+
+export interface GlobalSettings {
+  minimize_to_tray: boolean;
+  binaries_dir: string | null;
+  log_level: string;
+  theme: string;
+}
+
+/** Buffered recent log lines for a running instance. */
+export function getLogs(id: string): Promise<string[]> {
+  return invoke<string[]>("get_logs", { id });
+}
+
+export function getSettings(): Promise<GlobalSettings> {
+  return invoke<GlobalSettings>("get_settings");
+}
+
+export function updateSettings(settings: GlobalSettings): Promise<void> {
+  return invoke<void>("update_settings", { settings });
+}
+
+/** Export the whole config as JSON (for backup). */
+export function exportConfig(): Promise<string> {
+  return invoke<string>("export_config");
+}
+
+/** Restore the config from a backup JSON string. */
+export function importConfig(json: string): Promise<void> {
+  return invoke<void>("import_config", { json });
+}

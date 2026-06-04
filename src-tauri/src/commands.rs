@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::config::coins::{self, CoinInfo};
 use crate::config::miners;
 use crate::config::profiles::{PoolConfig, Profile};
+use crate::config::store::GlobalSettings;
 use crate::events::channel;
 use crate::miner::MinerInfo;
 use crate::network_api::NetworkStats;
@@ -211,6 +212,40 @@ pub async fn fetch_binary(state: State<'_, AppState>, miner_id: String) -> Resul
 #[tauri::command]
 pub fn check_updates(state: State<'_, AppState>) -> Vec<crate::binaries::UpdateInfo> {
     crate::binaries::BinaryManager::new(state.binaries_dir.clone()).check_updates()
+}
+
+/// Buffered recent log lines for a running instance.
+#[tauri::command]
+pub async fn get_logs(state: State<'_, AppState>, id: String) -> Result<Vec<String>, String> {
+    Ok(state.supervisor.lock().await.logs(&id).unwrap_or_default())
+}
+
+/// Read global settings (theme, tray, binaries dir, log level).
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Result<GlobalSettings, String> {
+    let store = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(store.global().clone())
+}
+
+/// Persist global settings.
+#[tauri::command]
+pub fn update_settings(state: State<'_, AppState>, settings: GlobalSettings) -> Result<(), String> {
+    let mut store = state.config.lock().map_err(|e| e.to_string())?;
+    store.set_global(settings).map_err(|e| e.to_string())
+}
+
+/// Export the whole config as JSON (for backup).
+#[tauri::command]
+pub fn export_config(state: State<'_, AppState>) -> Result<String, String> {
+    let store = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(store.export_json())
+}
+
+/// Restore the config from a backup JSON string.
+#[tauri::command]
+pub fn import_config(state: State<'_, AppState>, json: String) -> Result<(), String> {
+    let mut store = state.config.lock().map_err(|e| e.to_string())?;
+    store.import_json(&json).map_err(|e| e.to_string())
 }
 
 /// Suggest a thread count for a CPU-mined coin given detected hardware.
