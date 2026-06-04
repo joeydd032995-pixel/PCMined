@@ -6,6 +6,8 @@
 
 use serde::Serialize;
 
+use crate::miner::MinerStats;
+
 /// Event channel names. Keep in lockstep with `Channels` in `src/lib/events.ts`.
 pub mod channel {
     pub const STATS: &str = "miner://stats";
@@ -13,6 +15,13 @@ pub mod channel {
     pub const LOG: &str = "miner://log";
     pub const BLOCK_FOUND: &str = "miner://block-found";
     pub const DIFFICULTY: &str = "network://difficulty";
+}
+
+/// A telemetry snapshot for one running miner instance.
+#[derive(Debug, Clone, Serialize)]
+pub struct StatsEvent {
+    pub miner_id: String,
+    pub stats: MinerStats,
 }
 
 /// A single line of miner stdout/stderr forwarded to the UI log viewer.

@@ -35,6 +35,7 @@ anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["json", "rustls"] }
 
 [features]
 # default Tauri custom-protocol feature toggled by the bundler

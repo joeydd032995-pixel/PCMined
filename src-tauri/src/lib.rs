@@ -9,8 +9,20 @@
 
 pub mod commands;
 pub mod events;
+pub mod miner;
+pub mod supervisor;
 
+use tokio::sync::Mutex;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
+use supervisor::Supervisor;
+
+/// Shared application state managed by Tauri. The supervisor sits behind an
+/// async mutex so command handlers can hold it across `.await` points (e.g.
+/// while reaping a stopped child).
+pub struct AppState {
+    pub supervisor: Mutex<Supervisor>,
+}
 
 /// Initialize structured logging. Idempotent-safe for tests via `try_init`.
 fn init_tracing() {
@@ -34,7 +46,17 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
-        .invoke_handler(tauri::generate_handler![commands::ping])
+        .manage(AppState {
+            supervisor: Mutex::new(Supervisor::new()),
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::ping,
+            commands::list_miners,
+            commands::start_miner,
+            commands::confirm_fee_and_start,
+            commands::stop_miner,
+            commands::list_running,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
