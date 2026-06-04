@@ -10,6 +10,7 @@
 pub mod commands;
 pub mod config;
 pub mod events;
+pub mod hardware;
 pub mod miner;
 pub mod network_api;
 pub mod supervisor;
@@ -83,6 +84,9 @@ pub fn run() {
             commands::add_custom_pool,
             commands::test_pool,
             commands::get_network_stats,
+            commands::detect_hardware,
+            commands::suggest_threads,
+            commands::start_monitor,
             commands::start_miner,
             commands::confirm_fee_and_start,
             commands::stop_miner,

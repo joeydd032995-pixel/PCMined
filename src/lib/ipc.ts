@@ -207,3 +207,43 @@ export interface NetworkStats {
 export function getNetworkStats(coin: string): Promise<NetworkStats> {
   return invoke<NetworkStats>("get_network_stats", { coin });
 }
+
+// ---- P4: hardware + monitor-only ------------------------------------------
+
+export interface GpuInfo {
+  vendor: string;
+  name: string;
+}
+
+export interface HardwareInfo {
+  cpu_brand: string;
+  physical_cores: number;
+  logical_cores: number;
+  total_memory_mb: number;
+  gpus: GpuInfo[];
+  os: string;
+  arch: string;
+}
+
+/** Detect CPU/RAM/GPU and OS. */
+export function detectHardware(): Promise<HardwareInfo> {
+  return invoke<HardwareInfo>("detect_hardware");
+}
+
+/** Suggest a thread count for a CPU-mined coin given detected hardware. */
+export function suggestThreads(
+  coin: string,
+  physicalCores: number,
+  totalMemoryMb: number,
+): Promise<number> {
+  return invoke<number>("suggest_threads", {
+    coin,
+    physicalCores,
+    totalMemoryMb,
+  });
+}
+
+/** Start a monitor-only instance for a device/pool telemetry URL (no process). */
+export function startMonitor(coin: string, deviceUrl: string): Promise<string> {
+  return invoke<string>("start_monitor", { coin, deviceUrl });
+}

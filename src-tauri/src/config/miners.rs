@@ -4,45 +4,19 @@
 //! Adapters for kawpowminer/ethminer/monitor land in P4; their metadata lives
 //! here now so the registry, fee badges, and default resolution are complete.
 
-use crate::miner::adapters::{cpuminer_opt, lolminer};
-use crate::miner::{Algo, MinerInfo, TelemetryKind};
+use crate::miner::adapters::{cpuminer_opt, ethminer, kawpowminer, lolminer, monitor_device};
+use crate::miner::MinerInfo;
 
-pub const KAWPOWMINER: MinerInfo = MinerInfo {
-    id: "kawpowminer",
-    display: "kawpowminer",
-    algos: &[Algo::KawPow],
-    dev_fee_pct: 0.0,
-    open_source: true,
-    source_url: "https://github.com/RavenCommunity/kawpowminer/releases",
-    license: "GPL-3.0",
-    telemetry_kind: TelemetryKind::TcpJsonRpc,
-};
-
-pub const ETHMINER: MinerInfo = MinerInfo {
-    id: "ethminer",
-    display: "ethminer (ETChash fork)",
-    algos: &[Algo::EtcHash],
-    dev_fee_pct: 0.0,
-    open_source: true,
-    source_url: "https://github.com/etc-mining/ethminer/releases",
-    license: "GPL-3.0",
-    telemetry_kind: TelemetryKind::TcpJsonRpc,
-};
-
-pub const MONITOR: MinerInfo = MinerInfo {
-    id: "monitor",
-    display: "Device / pool monitor",
-    algos: &[Algo::Sha256d, Algo::Scrypt],
-    dev_fee_pct: 0.0,
-    open_source: true,
-    source_url: "https://github.com/bitaxeorg",
-    license: "N/A (monitor-only)",
-    telemetry_kind: TelemetryKind::Http,
-};
-
-/// Every miner known to the app (spawnable adapters + monitor-only).
+/// Every miner known to the app (spawnable adapters + monitor-only). Each entry
+/// is the canonical `INFO` const owned by its adapter — single source of truth.
 pub fn all_miners() -> Vec<MinerInfo> {
-    vec![cpuminer_opt::INFO, lolminer::INFO, KAWPOWMINER, ETHMINER, MONITOR]
+    vec![
+        cpuminer_opt::INFO,
+        lolminer::INFO,
+        kawpowminer::INFO,
+        ethminer::INFO,
+        monitor_device::INFO,
+    ]
 }
 
 /// Look up miner metadata by id.

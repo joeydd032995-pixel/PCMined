@@ -54,7 +54,8 @@ pub struct Instance {
     pub coin: String,
     pub kind: InstanceKind,
     pub dev_fee_pct: f32,
-    child: Child,
+    /// `None` for monitor-only instances (no local process).
+    child: Option<Child>,
     tasks: Vec<JoinHandle<()>>,
     shared: Arc<Shared>,
 }
@@ -110,10 +111,41 @@ impl Instance {
             coin,
             kind: InstanceKind::Spawned,
             dev_fee_pct,
-            child,
+            child: Some(child),
             tasks,
             shared,
         })
+    }
+
+    /// Create a monitor-only instance: no process is spawned, we just poll a
+    /// remote device/pool telemetry endpoint and emit stats.
+    pub fn monitor(
+        id: String,
+        coin: String,
+        adapter: Arc<dyn MinerAdapter>,
+        telemetry: Telemetry,
+        app: AppHandle,
+    ) -> Instance {
+        let info = adapter.info();
+        let miner_id = info.id.to_string();
+        let dev_fee_pct = info.dev_fee_pct;
+
+        emit_status(&app, &id, MinerState::Running, Some("monitoring (no local process)".into()));
+        tracing::info!(%id, %miner_id, "starting monitor-only instance");
+
+        let shared = Arc::new(Shared::new());
+        let tasks = vec![spawn_poll_task(id.clone(), adapter, telemetry, shared.clone(), app)];
+
+        Instance {
+            id,
+            miner_id,
+            coin,
+            kind: InstanceKind::Monitor,
+            dev_fee_pct,
+            child: None,
+            tasks,
+            shared,
+        }
     }
 
     /// Latest telemetry snapshot.
@@ -132,11 +164,13 @@ impl Instance {
         for t in &self.tasks {
             t.abort();
         }
-        // Best-effort kill, then wait to reap the zombie.
-        let _ = self.child.start_kill();
-        let _ = self.child.wait().await;
+        // Best-effort kill, then wait to reap the zombie (monitors have no child).
+        if let Some(mut child) = self.child.take() {
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+        }
         emit_status(app, &self.id, MinerState::Stopped, None);
-        tracing::info!(id = %self.id, "miner stopped and reaped");
+        tracing::info!(id = %self.id, "instance stopped and reaped");
         Ok(())
     }
 }

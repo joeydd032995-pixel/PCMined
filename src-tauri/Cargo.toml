@@ -41,6 +41,7 @@ bs58 = { version = "0.5.1", features = ["check"] }
 sha3 = "0.10.9"
 blake2 = "0.10.6"
 hex = "0.4.3"
+sysinfo = "0.36.1"
 
 [features]
 # default Tauri custom-protocol feature toggled by the bundler

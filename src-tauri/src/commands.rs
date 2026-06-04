@@ -154,6 +154,29 @@ pub async fn test_pool(pool: PoolConfig) -> PoolTestResult {
     }
 }
 
+/// Detect CPU/RAM/GPU and OS for this machine.
+#[tauri::command]
+pub async fn detect_hardware() -> crate::hardware::HardwareInfo {
+    crate::hardware::detect().await
+}
+
+/// Suggest a thread count for a CPU-mined coin given detected hardware.
+#[tauri::command]
+pub fn suggest_threads(coin: String, physical_cores: u32, total_memory_mb: u64) -> u32 {
+    crate::hardware::suggest_threads(&coin, physical_cores, total_memory_mb)
+}
+
+/// Start a monitor-only instance for a device/pool telemetry URL (no process).
+#[tauri::command]
+pub async fn start_monitor(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    coin: String,
+    device_url: String,
+) -> Result<String, StartError> {
+    state.supervisor.lock().await.start_monitor(&app, coin, device_url)
+}
+
 /// Fetch live network stats for a coin (cached/degrading) and broadcast them on
 /// the `network://difficulty` channel for any open dashboards.
 #[tauri::command]
