@@ -3,6 +3,7 @@ import {
   listCoins,
   resolveDefaultMiner,
   getNetworkStats,
+  reportBlockFound,
   type CoinInfo,
   type MinerInfo,
   type NetworkStats,
@@ -11,7 +12,7 @@ import { onStats, type MinerStats } from "../lib/events";
 import { LotteryBar } from "../components/LotteryBar";
 import { HashrateChart } from "../components/HashrateChart";
 import { MinerCard } from "../components/MinerCard";
-import { expectedTimeToBlock } from "../lib/lottery";
+import { expectedTimeToBlock, isBlockFound } from "../lib/lottery";
 import { formatHashrate, formatCompact, formatDuration } from "../lib/format";
 
 const NETWORK_REFRESH_MS = 30_000;
@@ -25,6 +26,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<MinerStats | null>(null);
   const [samples, setSamples] = useState<[number, number][]>([]);
   const seenRef = useRef(false);
+  const blockFiredRef = useRef(false);
 
   // Load the coin list once.
   useEffect(() => {
@@ -38,6 +40,7 @@ export function Dashboard() {
     setStats(null);
     setSamples([]);
     seenRef.current = false;
+    blockFiredRef.current = false;
     resolveDefaultMiner(selected).then((m) => active && setMiner(m)).catch(() => {});
 
     const refresh = () =>
@@ -74,6 +77,14 @@ export function Dashboard() {
     if (!net) return Infinity;
     return expectedTimeToBlock(net.network_hashrate, yourHashrate, net.block_time);
   }, [net, yourHashrate]);
+
+  // Fire the block-found alert once when a live best-share reaches difficulty.
+  useEffect(() => {
+    if (net && !blockFiredRef.current && isBlockFound(bestShare, net.difficulty)) {
+      blockFiredRef.current = true;
+      void reportBlockFound(selected, bestShare, net.difficulty);
+    }
+  }, [bestShare, net, selected]);
 
   const coin = coins.find((c) => c.id === selected);
 

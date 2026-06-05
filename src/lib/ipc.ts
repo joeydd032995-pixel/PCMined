@@ -207,3 +207,115 @@ export interface NetworkStats {
 export function getNetworkStats(coin: string): Promise<NetworkStats> {
   return invoke<NetworkStats>("get_network_stats", { coin });
 }
+
+// ---- P4: hardware + monitor-only ------------------------------------------
+
+export interface GpuInfo {
+  vendor: string;
+  name: string;
+}
+
+export interface HardwareInfo {
+  cpu_brand: string;
+  physical_cores: number;
+  logical_cores: number;
+  total_memory_mb: number;
+  gpus: GpuInfo[];
+  os: string;
+  arch: string;
+}
+
+/** Detect CPU/RAM/GPU and OS. */
+export function detectHardware(): Promise<HardwareInfo> {
+  return invoke<HardwareInfo>("detect_hardware");
+}
+
+/** Suggest a thread count for a CPU-mined coin given detected hardware. */
+export function suggestThreads(
+  coin: string,
+  physicalCores: number,
+  totalMemoryMb: number,
+): Promise<number> {
+  return invoke<number>("suggest_threads", {
+    coin,
+    physicalCores,
+    totalMemoryMb,
+  });
+}
+
+/** Start a monitor-only instance for a device/pool telemetry URL (no process). */
+export function startMonitor(coin: string, deviceUrl: string): Promise<string> {
+  return invoke<string>("start_monitor", { coin, deviceUrl });
+}
+
+// ---- P5: block-found alerts -----------------------------------------------
+
+/** Report a found block: broadcasts the event and fires a desktop notification. */
+export function reportBlockFound(
+  coin: string,
+  shareDiff: number,
+  networkDiff: number,
+): Promise<void> {
+  return invoke<void>("report_block_found", { coin, shareDiff, networkDiff });
+}
+
+/** Fire a test block-found alert (verifies the notification/tray path). */
+export function simulateBlockFound(coin: string): Promise<void> {
+  return invoke<void>("simulate_block_found", { coin });
+}
+
+// ---- P6: managed binaries -------------------------------------------------
+
+export interface UpdateInfo {
+  miner_id: string;
+  installed: string | null;
+  available: string | null;
+  update_available: boolean;
+  /** True when the app can auto-download a verified binary on this platform. */
+  fetchable: boolean;
+}
+
+/**
+ * Download, SHA-256-verify, and install the pinned binary for a miner. Rejects
+ * (pre-exec) if the downloaded artifact's hash doesn't match the pinned digest.
+ */
+export function fetchBinary(minerId: string): Promise<string> {
+  return invoke<string>("fetch_binary", { minerId });
+}
+
+/** Check for available miner binary updates (pinned vs installed). */
+export function checkUpdates(): Promise<UpdateInfo[]> {
+  return invoke<UpdateInfo[]>("check_updates");
+}
+
+// ---- P7: settings, logs, config backup/restore ----------------------------
+
+export interface GlobalSettings {
+  minimize_to_tray: boolean;
+  binaries_dir: string | null;
+  log_level: string;
+  theme: string;
+}
+
+/** Buffered recent log lines for a running instance. */
+export function getLogs(id: string): Promise<string[]> {
+  return invoke<string[]>("get_logs", { id });
+}
+
+export function getSettings(): Promise<GlobalSettings> {
+  return invoke<GlobalSettings>("get_settings");
+}
+
+export function updateSettings(settings: GlobalSettings): Promise<void> {
+  return invoke<void>("update_settings", { settings });
+}
+
+/** Export the whole config as JSON (for backup). */
+export function exportConfig(): Promise<string> {
+  return invoke<string>("export_config");
+}
+
+/** Restore the config from a backup JSON string. */
+export function importConfig(json: string): Promise<void> {
+  return invoke<void>("import_config", { json });
+}

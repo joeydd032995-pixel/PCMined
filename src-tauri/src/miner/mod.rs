@@ -8,6 +8,7 @@
 pub mod adapters;
 pub mod instance;
 pub mod telemetry;
+pub mod watchdog;
 
 use std::path::PathBuf;
 

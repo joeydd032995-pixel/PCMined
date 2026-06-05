@@ -37,6 +37,13 @@
     ],
     "category": "Utility",
     "shortDescription": "Solo crypto mining orchestrator",
-    "longDescription": "A dark, minimalist dashboard that orchestrates third-party miner binaries for honest, high-variance solo crypto mining. Addresses only — never private keys."
+    "longDescription": "A dark, minimalist dashboard that orchestrates third-party miner binaries for honest, high-variance solo crypto mining. Addresses only — never private keys.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
   }
 }
