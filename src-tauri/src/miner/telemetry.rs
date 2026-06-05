@@ -4,16 +4,18 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
 /// Concrete telemetry connection for a running instance. The port matches what
 /// the adapter wired into the miner's CLI args.
 #[derive(Debug, Clone)]
 pub enum Telemetry {
-    /// HTTP+JSON (e.g. lolMiner): GET `http://127.0.0.1:port{path}`.
+    /// HTTP+JSON on loopback (e.g. lolMiner): GET `http://127.0.0.1:port{path}`.
     Http { port: u16, path: String, token: Option<String> },
-    /// JSON-RPC over a raw TCP socket (ethminer / kawpowminer). Wired in P4.
+    /// HTTP+JSON at an absolute URL (remote monitor devices, e.g. a Bitaxe).
+    HttpUrl { url: String, token: Option<String> },
+    /// JSON-RPC over a raw TCP socket (ethminer / kawpowminer).
     TcpJsonRpc { port: u16 },
     /// Line/`;`-delimited text over TCP (cpuminer-opt API).
     TcpText { port: u16 },
@@ -43,18 +45,42 @@ pub async fn fetch_tcp_text(port: u16, command: &str) -> anyhow::Result<String> 
     Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
-/// GET a miner's HTTP telemetry endpoint and return the raw body.
+/// GET a miner's loopback HTTP telemetry endpoint and return the raw body.
 pub async fn fetch_http(port: u16, path: &str, token: Option<&str>) -> anyhow::Result<String> {
-    let url = format!("http://127.0.0.1:{port}{path}");
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()?;
-    let mut req = client.get(&url);
+    fetch_http_url(&format!("http://127.0.0.1:{port}{path}"), token).await
+}
+
+/// GET an absolute HTTP(S) telemetry URL (remote monitor devices).
+pub async fn fetch_http_url(url: &str, token: Option<&str>) -> anyhow::Result<String> {
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(6)).build()?;
+    let mut req = client.get(url);
     if let Some(t) = token {
         req = req.bearer_auth(t);
     }
     let resp = req.send().await.with_context(|| format!("GET {url} failed"))?;
     Ok(resp.text().await?)
+}
+
+/// Send an ethminer-style JSON-RPC request on loopback and return one response
+/// line. Used by kawpowminer/ethminer (`miner_getstat1`).
+pub async fn fetch_tcp_jsonrpc(port: u16, method: &str) -> anyhow::Result<String> {
+    let connect = TcpStream::connect(("127.0.0.1", port));
+    let stream = tokio::time::timeout(CONNECT_TIMEOUT, connect)
+        .await
+        .context("jsonrpc connect timed out")?
+        .context("jsonrpc connect failed")?;
+    let (read_half, mut write_half) = stream.into_split();
+
+    let request = format!("{{\"id\":0,\"jsonrpc\":\"2.0\",\"method\":\"{method}\"}}\n");
+    write_half.write_all(request.as_bytes()).await?;
+    write_half.flush().await?;
+
+    let mut line = String::new();
+    let mut reader = BufReader::new(read_half);
+    tokio::time::timeout(READ_TIMEOUT, reader.read_line(&mut line))
+        .await
+        .context("jsonrpc read timed out")??;
+    Ok(line)
 }
 
 /// Convert a hashrate value + unit string (e.g. "MH/s") into raw H/s. Tolerant

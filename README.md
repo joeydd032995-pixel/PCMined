@@ -60,16 +60,82 @@ Under active construction, phase by phase:
 - **P3 — Lottery dashboard + network APIs** ✅ `network_api.rs` (BTC live via mempool.space,
   graceful degradation + stale marking), lottery math, log-scale `LotteryBar`, uPlot hashrate
   chart, fee-badged miner cards.
-- P4–P7 — Multi-miner/hardware + monitor-only, reliability/tray, binary verification/packaging,
-  polish/docs (not yet implemented).
+- **P4 — Multi-miner + hardware + monitor-only** ✅ `hardware.rs` (CPU/RAM/GPU detect, thread
+  suggestions, hardware gating), kawpowminer/ethminer JSON-RPC adapters, Bitaxe AxeOS
+  monitor-only adapter, concurrent instances + contention warning.
+- **P5 — Reliability** ✅ `watchdog.rs` (backoff+jitter, circuit breaker, pool rotation),
+  reconnect/recovery in the poll task, graceful shutdown (zero orphans), system tray,
+  block-found notifications.
+- **P6 — Binaries + packaging** ✅ `binaries.rs` (download + SHA-256 verify before exec, semver
+  update check), Tauri bundle config, release CI (tauri-action matrix), CI verification workflow.
+- **P7 — Polish + docs** ✅ tabbed UI, live log viewer (verbose toggle + export), settings
+  (theme/tray/binaries dir/config backup+restore), keyboard shortcuts, status dots.
 
-### Extending: add a coin or miner
+## Contributing: add a coin or miner
 
-The roster is data-driven. To add a miner: implement one `MinerAdapter`
-(`src-tauri/src/miner/adapters/`) and add one entry to the registry
-(`src-tauri/src/config/miners.rs`). To add a coin: add a `CoinInfo` to
-`src-tauri/src/config/coins.rs` (algo, default pools, difficulty→hashrate) and an address
-validator branch in `src-tauri/src/wallet.rs`.
+The roster is data-driven — most additions are a single adapter + a single registry entry.
+
+**Add a miner** (e.g. a new GPU miner):
+
+1. Create `src-tauri/src/miner/adapters/<miner>.rs` implementing `MinerAdapter`
+   (`info`, `build_args`, `read`). Define its `pub const INFO: MinerInfo` with the **dev fee,
+   open-source flag, source URL, license, and telemetry kind** — fee is mandatory and shown in
+   the UI. Reuse a telemetry transport in `miner/telemetry.rs` (or add one) and a tolerant parser.
+2. Register it: add the module to `miner/adapters/mod.rs`, add `INFO` to `all_miners()` in
+   `config/miners.rs`, and (if spawnable) add it to the `Supervisor::new` adapter list and the
+   `candidates()` map. Write parser/`build_args` unit tests.
+
+**Add a coin:**
+
+1. Add a `CoinInfo` to `COINS` in `config/coins.rs` (algo, block time, default pools) and, if its
+   difficulty→hashrate relationship differs, extend `network_hashrate_from_difficulty`.
+2. Add an address-validation branch in `src-tauri/src/wallet.rs` — **with a real checksum**, not
+   just a regex — and a test against a known-good public address.
+3. Map the coin to its miner(s) in `candidates()` (`config/miners.rs`).
+
+No core/UI changes are required: fee badges, lottery odds, validation, and the dashboard all
+read from these registries.
+
+### Packaging & signing
+
+Cross-platform installers are built by `.github/workflows/release.yml` (tauri-action
+matrix: macOS arm64 + x86_64, Linux, Windows) on a `v*` tag push. Code-signing and
+notarization run only when the corresponding repo secrets are present:
+
+- **macOS:** `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+  `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` (notarization via notarytool).
+- **Windows:** a code-signing certificate / Azure Trusted Signing wired into the
+  tauri-action step.
+
+These cannot run in a headless Linux CI container, so signed artifacts are produced by the
+release workflow (with secrets) or on a maintainer's machine.
+
+**Managed binaries & antivirus.** Miner binaries are downloaded on demand from official
+release URLs into a managed dir and **SHA-256-verified before they are ever extracted or made
+executable** (`binaries.rs`); a tampered or corrupt download is refused pre-exec. **lolMiner
+1.98a** is pinned with the real SHA-256 of its official Linux (`Lin64.tar.gz`) and Windows
+(`Win64.zip`) release assets and is auto-fetchable from Settings → "Download". Miners that don't
+publish prebuilt binaries on their official releases (e.g. cpuminer-opt on Linux) are installed
+manually — point a profile's binary path at your own build. Mining binaries are frequently
+flagged by antivirus as false positives; we mitigate by signing + notarizing, downloading only
+from official sources, and never obfuscating. Document this for users so they can allowlist the app.
+
+The end-to-end fetch path (download → verify real SHA-256 → extract → set exec bit) is covered by
+an opt-in integration test against the real release:
+
+```bash
+cd src-tauri && cargo test -- --ignored real_fetch_lolminer
+```
+
+### First real run (mine your own hardware)
+
+1. Pick a GPU coin whose miner is auto-fetchable — **Kaspa** or **Ergo** (both use lolMiner).
+2. Settings → Miner binaries → **Check for updates** → **Download** (verifies SHA-256, installs).
+3. On the coin's panel, create a profile with your **own** wallet address. A default solo pool is
+   prefilled (HeroMiners for Kaspa with the `solo:` prefix; 2Miners `solo-*` hosts for Ergo/RVN/ETC)
+   — verify it with **Test pool** first; endpoints and fees drift.
+4. Start the miner. Live hashrate / shares / best-share appear within ~2s; the log-scale lottery bar
+   tracks your best share toward network difficulty. Remember: high-variance lottery, not income.
 
 ### Verifying this build
 

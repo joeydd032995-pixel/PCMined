@@ -20,6 +20,8 @@ pub struct GlobalSettings {
     pub binaries_dir: Option<String>,
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    #[serde(default = "default_theme")]
+    pub theme: String,
 }
 
 fn default_true() -> bool {
@@ -28,10 +30,18 @@ fn default_true() -> bool {
 fn default_log_level() -> String {
     "info".to_string()
 }
+fn default_theme() -> String {
+    "dark".to_string()
+}
 
 impl Default for GlobalSettings {
     fn default() -> Self {
-        GlobalSettings { minimize_to_tray: true, binaries_dir: None, log_level: default_log_level() }
+        GlobalSettings {
+            minimize_to_tray: true,
+            binaries_dir: None,
+            log_level: default_log_level(),
+            theme: default_theme(),
+        }
     }
 }
 
@@ -117,6 +127,30 @@ impl ConfigStore {
         } else {
             entry.profiles.push(profile);
         }
+        self.save()
+    }
+
+    /// Global settings (theme, tray, binaries dir, …).
+    pub fn global(&self) -> &GlobalSettings {
+        &self.config.global
+    }
+
+    /// Replace global settings and persist.
+    pub fn set_global(&mut self, global: GlobalSettings) -> std::io::Result<()> {
+        self.config.global = global;
+        self.save()
+    }
+
+    /// Serialize the whole config for backup/export.
+    pub fn export_json(&self) -> String {
+        serde_json::to_string_pretty(&self.config).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Replace the config from a backup JSON string (migrated), then persist.
+    pub fn import_json(&mut self, json: &str) -> std::io::Result<()> {
+        let value: serde_json::Value = serde_json::from_str(json)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        self.config = migrate(value);
         self.save()
     }
 
@@ -214,6 +248,20 @@ mod tests {
         let cfg = migrate(legacy);
         assert_eq!(cfg.version, SCHEMA_VERSION);
         assert!(cfg.coins.contains_key("xmr"));
+    }
+
+    #[test]
+    fn export_import_round_trip() {
+        let path = temp_path("export");
+        let mut store = ConfigStore::load(path.clone());
+        store.save_profile("xmr", sample_profile()).unwrap();
+        let backup = store.export_json();
+
+        let path2 = temp_path("import");
+        let mut restored = ConfigStore::load(path2);
+        restored.import_json(&backup).unwrap();
+        assert_eq!(restored.profiles("xmr").len(), 1);
+        assert_eq!(restored.config().version, SCHEMA_VERSION);
     }
 
     #[test]

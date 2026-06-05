@@ -10,9 +10,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
-use crate::miner::adapters::{cpuminer_opt::CpuminerOpt, lolminer::LolMiner};
+use crate::config::miners;
+use crate::events::{channel, LogEvent};
+use crate::hardware;
+use crate::miner::adapters::cpuminer_opt::CpuminerOpt;
+use crate::miner::adapters::ethminer::EthMiner;
+use crate::miner::adapters::kawpowminer::KawpowMiner;
+use crate::miner::adapters::lolminer::LolMiner;
+use crate::miner::adapters::monitor_device::MonitorDevice;
 use crate::miner::instance::Instance;
 use crate::miner::telemetry::Telemetry;
 use crate::miner::{Algo, MinerAdapter, MinerInfo, ResolvedProfile, TelemetryBinding, TelemetryKind};
@@ -87,11 +94,24 @@ pub fn fee_gate(dev_fee_pct: f32, confirmed: bool) -> bool {
     dev_fee_pct <= 0.0 || confirmed
 }
 
+/// Warn (non-fatally) when a start would oversubscribe the CPU. Pure + tested.
+pub fn contention_warning(requested_threads: u32, logical_cores: u32) -> Option<String> {
+    if logical_cores > 0 && requested_threads > logical_cores {
+        Some(format!(
+            "requesting {requested_threads} threads on {logical_cores} logical cores may hurt performance"
+        ))
+    } else {
+        None
+    }
+}
+
 pub struct Supervisor {
     adapters: HashMap<&'static str, Arc<dyn MinerAdapter>>,
+    monitor_adapter: Arc<dyn MinerAdapter>,
     instances: HashMap<String, Instance>,
     next_port: u16,
     next_seq: u64,
+    logical_cores: u32,
 }
 
 impl Default for Supervisor {
@@ -106,22 +126,31 @@ impl Supervisor {
         for adapter in [
             Arc::new(CpuminerOpt) as Arc<dyn MinerAdapter>,
             Arc::new(LolMiner) as Arc<dyn MinerAdapter>,
+            Arc::new(KawpowMiner) as Arc<dyn MinerAdapter>,
+            Arc::new(EthMiner) as Arc<dyn MinerAdapter>,
         ] {
             adapters.insert(adapter.info().id, adapter);
         }
+        let (_, _, logical_cores, _) = hardware::detect_cpu();
         Supervisor {
             adapters,
+            monitor_adapter: Arc::new(MonitorDevice),
             instances: HashMap::new(),
             next_port: TELEMETRY_PORT_BASE,
             next_seq: 0,
+            logical_cores,
         }
     }
 
-    /// Static metadata for all registered miners (fee, source, license, …).
+    /// Static metadata for the whole roster (spawnable + monitor-only) so fee /
+    /// source / license badges are complete in the UI.
     pub fn miner_infos(&self) -> Vec<MinerInfo> {
-        let mut infos: Vec<MinerInfo> = self.adapters.values().map(|a| *a.info()).collect();
-        infos.sort_by_key(|i| i.id);
-        infos
+        miners::all_miners()
+    }
+
+    /// Buffered recent log lines for one instance (oldest first).
+    pub fn logs(&self, id: &str) -> Option<Vec<String>> {
+        self.instances.get(id).map(|i| i.logs())
     }
 
     pub fn running(&self) -> Vec<RunningMiner> {
@@ -226,6 +255,49 @@ impl Supervisor {
         )
         .map_err(|e| StartError::SpawnFailed { message: e.to_string() })?;
 
+        // Surface a non-fatal CPU-contention warning into the instance log.
+        if let Some(warning) =
+            contention_warning(req.threads.unwrap_or(0), self.logical_cores)
+        {
+            tracing::warn!(%id, %warning, "cpu contention");
+            let _ = app.emit(
+                channel::LOG,
+                LogEvent { miner_id: id.clone(), line: format!("[warn] {warning}") },
+            );
+        }
+
+        self.instances.insert(id.clone(), instance);
+        Ok(id)
+    }
+
+    /// Start a monitor-only instance for a device/pool HTTP telemetry endpoint
+    /// (e.g. a Bitaxe running AxeOS). No local process is spawned.
+    pub fn start_monitor(
+        &mut self,
+        app: &AppHandle,
+        coin: String,
+        device_url: String,
+    ) -> Result<String, StartError> {
+        if self.instances.len() >= MAX_CONCURRENT {
+            return Err(StartError::ConcurrencyLimit { max: MAX_CONCURRENT });
+        }
+        // Accept a base host or a full URL; default to the AxeOS info path.
+        let base = if device_url.starts_with("http://") || device_url.starts_with("https://") {
+            device_url
+        } else {
+            format!("http://{device_url}")
+        };
+        let url = if base.contains("/api/") {
+            base
+        } else {
+            format!("{}/api/system/info", base.trim_end_matches('/'))
+        };
+
+        self.next_seq += 1;
+        let id = format!("{coin}:monitor#{}", self.next_seq);
+        let telemetry = Telemetry::HttpUrl { url, token: None };
+        let instance =
+            Instance::monitor(id.clone(), coin, self.monitor_adapter.clone(), telemetry, app.clone());
         self.instances.insert(id.clone(), instance);
         Ok(id)
     }
@@ -270,11 +342,20 @@ mod tests {
     }
 
     #[test]
-    fn registers_p1_adapters() {
+    fn registers_full_roster() {
         let sup = Supervisor::new();
         let ids: Vec<&str> = sup.miner_infos().iter().map(|i| i.id).collect();
-        assert!(ids.contains(&"cpuminer-opt"));
-        assert!(ids.contains(&"lolminer"));
+        for id in ["cpuminer-opt", "lolminer", "kawpowminer", "ethminer", "monitor"] {
+            assert!(ids.contains(&id), "missing {id}");
+        }
+    }
+
+    #[test]
+    fn contention_warning_only_when_oversubscribed() {
+        assert!(contention_warning(4, 8).is_none());
+        assert!(contention_warning(8, 8).is_none());
+        assert!(contention_warning(16, 8).is_some());
+        assert!(contention_warning(4, 0).is_none()); // unknown core count
     }
 
     #[test]

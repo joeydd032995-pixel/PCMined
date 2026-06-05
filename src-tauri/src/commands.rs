@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::config::coins::{self, CoinInfo};
 use crate::config::miners;
 use crate::config::profiles::{PoolConfig, Profile};
+use crate::config::store::GlobalSettings;
 use crate::events::channel;
 use crate::miner::MinerInfo;
 use crate::network_api::NetworkStats;
@@ -152,6 +153,116 @@ pub async fn test_pool(pool: PoolConfig) -> PoolTestResult {
             error: Some("connection timed out".into()),
         },
     }
+}
+
+/// Detect CPU/RAM/GPU and OS for this machine.
+#[tauri::command]
+pub async fn detect_hardware() -> crate::hardware::HardwareInfo {
+    crate::hardware::detect().await
+}
+
+/// Report a found block: broadcast `miner://block-found` and fire a desktop
+/// notification (the rare win). The dashboard calls this when a live best-share
+/// reaches network difficulty; `simulate_block_found` exercises the same path.
+#[tauri::command]
+pub fn report_block_found(
+    app: AppHandle,
+    coin: String,
+    share_diff: f64,
+    network_diff: f64,
+) -> Result<(), String> {
+    use crate::events::BlockFoundEvent;
+    use tauri_plugin_notification::NotificationExt;
+
+    let payload = BlockFoundEvent {
+        miner_id: format!("{coin}:block"),
+        coin: coin.clone(),
+        share_diff,
+        network_diff,
+    };
+    let _ = app.emit(channel::BLOCK_FOUND, &payload);
+    let _ = app
+        .notification()
+        .builder()
+        .title("🎉 Block found!")
+        .body(format!("{} — share diff {:.3e} reached network difficulty", coin.to_uppercase(), share_diff))
+        .show();
+    Ok(())
+}
+
+/// Fire a test block-found alert to verify the notification/tray path.
+#[tauri::command]
+pub fn simulate_block_found(app: AppHandle, coin: String) -> Result<(), String> {
+    report_block_found(app, coin, 1.0e15, 1.0e15)
+}
+
+/// Download, SHA-256-verify, and install the pinned binary for a miner. Returns
+/// the installed path. Refuses to install (pre-exec) on a hash mismatch.
+#[tauri::command]
+pub async fn fetch_binary(state: State<'_, AppState>, miner_id: String) -> Result<String, String> {
+    let manager = crate::binaries::BinaryManager::new(state.binaries_dir.clone());
+    manager
+        .fetch(&miner_id)
+        .await
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+/// Check for available miner binary updates (pinned vs installed).
+#[tauri::command]
+pub fn check_updates(state: State<'_, AppState>) -> Vec<crate::binaries::UpdateInfo> {
+    crate::binaries::BinaryManager::new(state.binaries_dir.clone()).check_updates()
+}
+
+/// Buffered recent log lines for a running instance.
+#[tauri::command]
+pub async fn get_logs(state: State<'_, AppState>, id: String) -> Result<Vec<String>, String> {
+    Ok(state.supervisor.lock().await.logs(&id).unwrap_or_default())
+}
+
+/// Read global settings (theme, tray, binaries dir, log level).
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Result<GlobalSettings, String> {
+    let store = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(store.global().clone())
+}
+
+/// Persist global settings.
+#[tauri::command]
+pub fn update_settings(state: State<'_, AppState>, settings: GlobalSettings) -> Result<(), String> {
+    let mut store = state.config.lock().map_err(|e| e.to_string())?;
+    store.set_global(settings).map_err(|e| e.to_string())
+}
+
+/// Export the whole config as JSON (for backup).
+#[tauri::command]
+pub fn export_config(state: State<'_, AppState>) -> Result<String, String> {
+    let store = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(store.export_json())
+}
+
+/// Restore the config from a backup JSON string.
+#[tauri::command]
+pub fn import_config(state: State<'_, AppState>, json: String) -> Result<(), String> {
+    let mut store = state.config.lock().map_err(|e| e.to_string())?;
+    store.import_json(&json).map_err(|e| e.to_string())
+}
+
+/// Suggest a thread count for a CPU-mined coin given detected hardware.
+#[tauri::command]
+pub fn suggest_threads(coin: String, physical_cores: u32, total_memory_mb: u64) -> u32 {
+    crate::hardware::suggest_threads(&coin, physical_cores, total_memory_mb)
+}
+
+/// Start a monitor-only instance for a device/pool telemetry URL (no process).
+#[tauri::command]
+pub async fn start_monitor(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    coin: String,
+    device_url: String,
+) -> Result<String, StartError> {
+    state.supervisor.lock().await.start_monitor(&app, coin, device_url)
 }
 
 /// Fetch live network stats for a coin (cached/degrading) and broadcast them on

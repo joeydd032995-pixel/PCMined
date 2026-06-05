@@ -32,6 +32,11 @@ fn now_secs() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// A block is found when the best share difficulty reaches network difficulty.
+pub fn is_block_found(best_share_diff: f64, network_difficulty: f64) -> bool {
+    network_difficulty > 0.0 && best_share_diff >= network_difficulty
+}
+
 /// BTC block subsidy (BTC) at a given height: 50 halving every 210,000 blocks.
 pub fn btc_block_reward(height: u64) -> f64 {
     let halvings = height / 210_000;
@@ -188,5 +193,13 @@ mod tests {
         assert!(p.stale);
         assert_eq!(p.block_reward, 3.125);
         assert_eq!(p.block_time, 600.0);
+    }
+
+    #[test]
+    fn block_found_threshold() {
+        assert!(is_block_found(100.0, 100.0));
+        assert!(is_block_found(150.0, 100.0));
+        assert!(!is_block_found(99.9, 100.0));
+        assert!(!is_block_found(100.0, 0.0));
     }
 }

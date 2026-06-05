@@ -57,12 +57,52 @@ const BTC_POOLS: &[PoolDef] = &[
     },
 ];
 
+// HeroMiners runs solo mode via a `solo:` prefix on the wallet (same host/port
+// as the pool). 2Miners runs solo via dedicated `solo-<coin>` hosts. Both are
+// runtime-verifiable with `test_pool` — endpoints/fees drift, so confirm before
+// relying on one.
+const KAS_POOLS: &[PoolDef] = &[PoolDef {
+    name: "HeroMiners Kaspa (SOLO, ~0.9%)",
+    host: "kaspa.herominers.com",
+    port: 1206,
+    tls: false,
+    fee_pct: 0.9,
+    user_template: "solo:{wallet}.{worker}",
+}];
+
+const ERG_POOLS: &[PoolDef] = &[PoolDef {
+    name: "2Miners Ergo (SOLO, ~1.5%)",
+    host: "solo-erg.2miners.com",
+    port: 8888,
+    tls: false,
+    fee_pct: 1.5,
+    user_template: "{wallet}.{worker}",
+}];
+
+const RVN_POOLS: &[PoolDef] = &[PoolDef {
+    name: "2Miners Ravencoin (SOLO, ~1.5%)",
+    host: "solo-rvn.2miners.com",
+    port: 6060,
+    tls: false,
+    fee_pct: 1.5,
+    user_template: "{wallet}.{worker}",
+}];
+
+const ETC_POOLS: &[PoolDef] = &[PoolDef {
+    name: "2Miners Ethereum Classic (SOLO, ~1.5%)",
+    host: "solo-etc.2miners.com",
+    port: 1010,
+    tls: false,
+    fee_pct: 1.5,
+    user_template: "{wallet}.{worker}",
+}];
+
 pub static COINS: &[CoinInfo] = &[
     CoinInfo { id: "xmr", name: "Monero", algo: Algo::RandomX, monitor_only: false, block_time_secs: 120.0, default_pools: NO_POOLS },
-    CoinInfo { id: "rvn", name: "Ravencoin", algo: Algo::KawPow, monitor_only: false, block_time_secs: 60.0, default_pools: NO_POOLS },
-    CoinInfo { id: "etc", name: "Ethereum Classic", algo: Algo::EtcHash, monitor_only: false, block_time_secs: 13.0, default_pools: NO_POOLS },
-    CoinInfo { id: "kas", name: "Kaspa", algo: Algo::KHeavyHash, monitor_only: false, block_time_secs: 1.0, default_pools: NO_POOLS },
-    CoinInfo { id: "erg", name: "Ergo", algo: Algo::Autolykos2, monitor_only: false, block_time_secs: 120.0, default_pools: NO_POOLS },
+    CoinInfo { id: "rvn", name: "Ravencoin", algo: Algo::KawPow, monitor_only: false, block_time_secs: 60.0, default_pools: RVN_POOLS },
+    CoinInfo { id: "etc", name: "Ethereum Classic", algo: Algo::EtcHash, monitor_only: false, block_time_secs: 13.0, default_pools: ETC_POOLS },
+    CoinInfo { id: "kas", name: "Kaspa", algo: Algo::KHeavyHash, monitor_only: false, block_time_secs: 1.0, default_pools: KAS_POOLS },
+    CoinInfo { id: "erg", name: "Ergo", algo: Algo::Autolykos2, monitor_only: false, block_time_secs: 120.0, default_pools: ERG_POOLS },
     CoinInfo { id: "btc", name: "Bitcoin", algo: Algo::Sha256d, monitor_only: true, block_time_secs: 600.0, default_pools: BTC_POOLS },
     CoinInfo { id: "ltc", name: "Litecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 150.0, default_pools: NO_POOLS },
     CoinInfo { id: "doge", name: "Dogecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 60.0, default_pools: NO_POOLS },
