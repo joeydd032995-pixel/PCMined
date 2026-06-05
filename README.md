@@ -39,6 +39,13 @@ Prerequisites: Rust (stable), Node 18+, and the [Tauri 2 system
 dependencies](https://tauri.app/start/prerequisites/) for your OS (on Debian/Ubuntu:
 `libwebkit2gtk-4.1-dev libsoup-3.0-dev libgtk-3-dev librsvg2-dev`).
 
+### Windows quick start (one click)
+
+On Windows 10/11, double-click **`scripts\windows\launch.cmd`**. It installs the whole toolchain
+(Rust, Node, MSVC C++ Build Tools, WebView2) via winget, builds the app from source, and launches
+it. See [`scripts/windows/README.md`](scripts/windows/README.md) for details. (First run downloads
+a large toolchain and takes several minutes; re-runs are fast.)
+
 ```bash
 npm install
 npm run tauri dev      # run the desktop app (requires a display)

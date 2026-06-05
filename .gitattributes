@@ -1,0 +1,10 @@
+# Normalize line endings. Windows launcher scripts must be CRLF so they run
+# correctly when checked out on Windows.
+* text=auto
+
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Keep shell scripts LF.
+*.sh text eol=lf
