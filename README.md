@@ -111,13 +111,31 @@ These cannot run in a headless Linux CI container, so signed artifacts are produ
 release workflow (with secrets) or on a maintainer's machine.
 
 **Managed binaries & antivirus.** Miner binaries are downloaded on demand from official
-release URLs into a managed dir and **SHA-256-verified before they are ever made
-executable** (`binaries.rs`); a tampered or corrupt download is refused pre-exec. The pinned
-digests in `RELEASES` are placeholders (all-zero) and must be set to the real hash of each
-pinned version before enabling downloads — until then the manager fails closed. Mining
-binaries are frequently flagged by antivirus as false positives; we mitigate by signing +
-notarizing, downloading only from official sources, and never obfuscating. Document this for
-users so they can allowlist the app.
+release URLs into a managed dir and **SHA-256-verified before they are ever extracted or made
+executable** (`binaries.rs`); a tampered or corrupt download is refused pre-exec. **lolMiner
+1.98a** is pinned with the real SHA-256 of its official Linux (`Lin64.tar.gz`) and Windows
+(`Win64.zip`) release assets and is auto-fetchable from Settings → "Download". Miners that don't
+publish prebuilt binaries on their official releases (e.g. cpuminer-opt on Linux) are installed
+manually — point a profile's binary path at your own build. Mining binaries are frequently
+flagged by antivirus as false positives; we mitigate by signing + notarizing, downloading only
+from official sources, and never obfuscating. Document this for users so they can allowlist the app.
+
+The end-to-end fetch path (download → verify real SHA-256 → extract → set exec bit) is covered by
+an opt-in integration test against the real release:
+
+```bash
+cd src-tauri && cargo test -- --ignored real_fetch_lolminer
+```
+
+### First real run (mine your own hardware)
+
+1. Pick a GPU coin whose miner is auto-fetchable — **Kaspa** or **Ergo** (both use lolMiner).
+2. Settings → Miner binaries → **Check for updates** → **Download** (verifies SHA-256, installs).
+3. On the coin's panel, create a profile with your **own** wallet address. A default solo pool is
+   prefilled (HeroMiners for Kaspa with the `solo:` prefix; 2Miners `solo-*` hosts for Ergo/RVN/ETC)
+   — verify it with **Test pool** first; endpoints and fees drift.
+4. Start the miner. Live hashrate / shares / best-share appear within ~2s; the log-scale lottery bar
+   tracks your best share toward network difficulty. Remember: high-variance lottery, not income.
 
 ### Verifying this build
 

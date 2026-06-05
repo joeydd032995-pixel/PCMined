@@ -5,6 +5,7 @@ import {
   exportConfig,
   importConfig,
   checkUpdates,
+  fetchBinary,
   type GlobalSettings,
   type UpdateInfo,
 } from "../lib/ipc";
@@ -31,7 +32,19 @@ const btn: React.CSSProperties = {
 export function Settings() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [updates, setUpdates] = useState<UpdateInfo[] | null>(null);
+  const [fetchStatus, setFetchStatus] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+
+  const doFetch = async (minerId: string) => {
+    setFetchStatus((s) => ({ ...s, [minerId]: "downloading + verifying…" }));
+    try {
+      const path = await fetchBinary(minerId);
+      setFetchStatus((s) => ({ ...s, [minerId]: `installed: ${path}` }));
+      checkUpdates().then(setUpdates).catch(() => {});
+    } catch (e) {
+      setFetchStatus((s) => ({ ...s, [minerId]: `failed: ${String(e)}` }));
+    }
+  };
 
   useEffect(() => {
     getSettings().then(setSettings).catch(() => {});
@@ -130,14 +143,27 @@ export function Settings() {
           Check for updates
         </button>
         {updates && (
-          <div className="mono" style={{ fontSize: 12 }}>
+          <div className="mono" style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
             {updates.map((u) => (
-              <div key={u.miner_id} style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{u.miner_id}</span>
-                <span style={{ color: u.update_available ? "var(--warn)" : "var(--text-2)" }}>
-                  {u.installed ?? "not installed"} → {u.available}
+              <div key={u.miner_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ minWidth: 110 }}>{u.miner_id}</span>
+                <span style={{ color: u.update_available ? "var(--warn)" : "var(--text-2)", flex: 1 }}>
+                  {u.installed ?? "not installed"}
+                  {u.available ? ` → ${u.available}` : ""}
                   {u.update_available ? " (update)" : ""}
                 </span>
+                {u.fetchable ? (
+                  <button onClick={() => doFetch(u.miner_id)} style={btn}>
+                    {u.installed ? "Re-fetch" : "Download"}
+                  </button>
+                ) : (
+                  <span style={{ color: "var(--text-2)" }}>manual install</span>
+                )}
+                {fetchStatus[u.miner_id] && (
+                  <span style={{ color: "var(--text-2)", flexBasis: "100%" }}>
+                    {fetchStatus[u.miner_id]}
+                  </span>
+                )}
               </div>
             ))}
           </div>

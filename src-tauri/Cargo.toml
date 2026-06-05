@@ -45,6 +45,9 @@ sysinfo = "0.36.1"
 rand = "0.9.4"
 semver = "1.0.28"
 sha2 = "0.10.9"
+flate2 = "1.1.9"
+tar = "0.4.46"
+zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
 
 [features]
 # default Tauri custom-protocol feature toggled by the bundler

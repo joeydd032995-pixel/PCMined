@@ -269,8 +269,10 @@ export function simulateBlockFound(coin: string): Promise<void> {
 export interface UpdateInfo {
   miner_id: string;
   installed: string | null;
-  available: string;
+  available: string | null;
   update_available: boolean;
+  /** True when the app can auto-download a verified binary on this platform. */
+  fetchable: boolean;
 }
 
 /**
