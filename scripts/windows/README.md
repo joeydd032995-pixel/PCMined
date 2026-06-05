@@ -36,6 +36,10 @@ are also commonly flagged as false positives — see the AV note in the project 
 
 ## If something goes wrong
 
+- **"'powershell' is not recognized" / error 9009** — your `PATH` is missing the
+  `C:\Windows\System32\WindowsPowerShell\v1.0\` entry. The launcher now calls PowerShell by its
+  full path via `%SystemRoot%`, so updating to the latest `launch.cmd` fixes this. (You can also add
+  that folder back to your PATH, or run `bootstrap.ps1` directly from an elevated PowerShell.)
 - **"winget was not found"** — install *App Installer* from the Microsoft Store, then re-run.
 - **"node/npm/cargo is still not on PATH"** — close the window and double-click `launch.cmd` again;
   a fresh shell picks up the newly installed tools.
