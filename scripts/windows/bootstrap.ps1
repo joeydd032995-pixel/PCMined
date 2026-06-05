@@ -70,6 +70,55 @@ function Install-WingetPackage {
     Write-Ok "$Id installed."
 }
 
+# Find a Visual Studio install that has the MSVC x64 C++ toolchain, via vswhere.
+function Get-VcInstallPath {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path $vswhere)) { return $null }
+    $p = & $vswhere -latest -products * `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath 2>$null
+    if ($p) { return ($p | Select-Object -First 1) }
+    return $null
+}
+
+# Ensure the MSVC C++ Build Tools (compiler + linker + Windows SDK) are present.
+# winget's BuildTools package frequently installs the shell without the C++
+# workload, so use the official bootstrapper with an explicit --add VCTools
+# (idempotent: it modifies an existing install to add the workload).
+function Install-MsvcBuildTools {
+    $vc = Get-VcInstallPath
+    if ($vc) { Write-Ok "MSVC C++ tools present: $vc"; return $vc }
+
+    Write-Phase 'Installing MSVC C++ Build Tools (VCTools) - large download, please wait'
+    $installer = Join-Path $env:TEMP 'vs_BuildTools.exe'
+    Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile $installer
+    $proc = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+        '--quiet', '--wait', '--norestart', '--nocache',
+        '--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended'
+    )
+    # 0 = ok; 3010 = ok but reboot recommended.
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+        throw "Visual Studio Build Tools installer failed (exit $($proc.ExitCode))."
+    }
+    $vc = Get-VcInstallPath
+    if (-not $vc) {
+        throw 'MSVC C++ tools still not detected. Reboot and re-run, or open the Visual Studio Installer and add the "Desktop development with C++" workload.'
+    }
+    Write-Ok "MSVC C++ tools installed: $vc"
+    return $vc
+}
+
+# Load the VS developer environment into this session so link.exe, the C/C++
+# headers, and the Windows SDK libs are on PATH/INCLUDE/LIB for the Rust build.
+function Enter-DevEnv($vcPath) {
+    $dll = Join-Path $vcPath 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll'
+    if (-not (Test-Path $dll)) { return $false }
+    Import-Module $dll -ErrorAction Stop
+    Enter-VsDevShell -VsInstallPath $vcPath -SkipAutomaticLocation `
+        -DevCmdArguments '-arch=x64 -host_arch=x64 -no_logo' | Out-Null
+    return $true
+}
+
 try {
     Write-Host "Lottery Ticket Terminal - Windows launcher" -ForegroundColor Magenta
     Write-Host "This installs a build toolchain (~2-4 GB) and builds the app from source." -ForegroundColor Magenta
@@ -88,8 +137,6 @@ winget was not found. Install "App Installer" from the Microsoft Store, then re-
     Install-WingetPackage -Id 'Git.Git'
     Install-WingetPackage -Id 'OpenJS.NodeJS.LTS'
     Install-WingetPackage -Id 'Rustlang.Rustup'
-    Install-WingetPackage -Id 'Microsoft.VisualStudio.2022.BuildTools' `
-        -Override '--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
     Install-WingetPackage -Id 'Microsoft.EdgeWebView2Runtime'
 
     Update-SessionPath
@@ -102,6 +149,10 @@ winget was not found. Install "App Installer" from the Microsoft Store, then re-
     } else {
         Write-Warn2 'rustup not on PATH yet; you may need to re-run this launcher once.'
     }
+
+    # MSVC C++ Build Tools provide link.exe + Windows SDK that the Rust MSVC
+    # target links against. Installed via the official bootstrapper (reliable).
+    $vcPath = Install-MsvcBuildTools
 
     # --- Source --------------------------------------------------------------
     Write-Phase 'Locating project source'
@@ -140,6 +191,16 @@ winget was not found. Install "App Installer" from the Microsoft Store, then re-
         }
     }
     Write-Ok ("node {0}, npm {1}, cargo present." -f (& node --version), (& npm --version))
+
+    # Load the VS developer environment so the Rust build finds link.exe.
+    Write-Phase 'Loading Visual Studio developer environment'
+    if (Enter-DevEnv $vcPath) {
+        Set-Location $repoRoot  # in case the dev shell changed the location
+        if (Test-Cmd 'link') { Write-Ok 'MSVC linker (link.exe) is available.' }
+        else { Write-Warn2 'link.exe still not visible; the build may fail.' }
+    } else {
+        Write-Warn2 'Could not load the VS DevShell module; relying on cargo auto-detection.'
+    }
 
     # --- Build ---------------------------------------------------------------
     Write-Phase 'Installing JS dependencies (npm ci)'

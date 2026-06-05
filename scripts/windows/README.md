@@ -41,6 +41,10 @@ are also commonly flagged as false positives — see the AV note in the project 
   full path via `%SystemRoot%`, so updating to the latest `launch.cmd` fixes this. (You can also add
   that folder back to your PATH, or run `bootstrap.ps1` directly from an elevated PowerShell.)
 - **"winget was not found"** — install *App Installer* from the Microsoft Store, then re-run.
+- **"linker `link.exe` not found"** — the MSVC C++ workload wasn't installed. The launcher now
+  installs it via the official VS Build Tools bootstrapper (the `VCTools` workload) and loads the
+  VS developer environment before building. Re-run `launch.cmd`; if it persists, open the *Visual
+  Studio Installer* and add **"Desktop development with C++"**, then re-run.
 - **"node/npm/cargo is still not on PATH"** — close the window and double-click `launch.cmd` again;
   a fresh shell picks up the newly installed tools.
 - The PowerShell logic lives in `bootstrap.ps1`; you can run it directly in an elevated PowerShell:
