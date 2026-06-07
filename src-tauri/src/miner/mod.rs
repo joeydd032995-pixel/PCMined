@@ -26,8 +26,11 @@ pub enum Algo {
     Sha256d,
     KawPow,
     EtcHash,
+    Ethash,
     KHeavyHash,
     Autolykos2,
+    KarlsenHash,
+    PyrinHash,
 }
 
 /// How a miner exposes telemetry (used for UI/registry display; the concrete
@@ -140,6 +143,13 @@ pub trait MinerAdapter: Send + Sync {
 
     fn supports(&self, algo: Algo) -> bool {
         self.info().algos.contains(&algo)
+    }
+
+    /// Dev fee for a specific algorithm. Defaults to the miner's headline fee;
+    /// miners whose fee varies by algorithm (e.g. lolMiner) override this so the
+    /// fee gate and confirmation dialog disclose the exact percentage.
+    fn dev_fee_for(&self, _algo: Algo) -> f32 {
+        self.info().dev_fee_pct
     }
 
     /// Build the command-line arguments to launch this miner for `p`, binding

@@ -18,8 +18,17 @@ use crate::miner::{
 pub const INFO: MinerInfo = MinerInfo {
     id: "lolminer",
     display: "lolMiner",
-    algos: &[Algo::KHeavyHash, Algo::Autolykos2],
-    dev_fee_pct: 1.0, // disclosed; confirm against the pinned version at integration
+    algos: &[
+        Algo::KHeavyHash,
+        Algo::Autolykos2,
+        Algo::Ethash,
+        Algo::EtcHash,
+        Algo::KarlsenHash,
+        Algo::PyrinHash,
+    ],
+    // Headline fee; lolMiner's fee varies by algorithm (0.7–1.5%) — see
+    // `dev_fee_for`, which the fee gate uses for the exact figure.
+    dev_fee_pct: 1.0,
     open_source: false,
     source_url: "https://github.com/Lolliedieb/lolMiner-releases/releases",
     license: "Proprietary (freeware)",
@@ -28,11 +37,27 @@ pub const INFO: MinerInfo = MinerInfo {
 
 pub struct LolMiner;
 
+/// lolMiner's `--algo` flag for each algorithm (case-sensitive, v1.98a).
 fn algo_flag(algo: Algo) -> Option<&'static str> {
     match algo {
-        Algo::KHeavyHash => Some("HEAVYHASH"),
+        Algo::KHeavyHash => Some("KASPA"),
         Algo::Autolykos2 => Some("AUTOLYKOS2"),
+        Algo::Ethash => Some("ETHASH"),
+        Algo::EtcHash => Some("ETCHASH"),
+        Algo::KarlsenHash => Some("KARLSENV2"),
+        Algo::PyrinHash => Some("PYRINV2"),
         _ => None,
+    }
+}
+
+/// lolMiner's disclosed dev fee per algorithm.
+pub fn dev_fee_for_algo(algo: Algo) -> f32 {
+    match algo {
+        Algo::Ethash | Algo::EtcHash => 0.7,
+        Algo::KHeavyHash => 0.75,
+        Algo::KarlsenHash | Algo::PyrinHash => 1.0,
+        Algo::Autolykos2 => 1.5,
+        _ => 1.0,
     }
 }
 
@@ -111,8 +136,12 @@ impl MinerAdapter for LolMiner {
         &INFO
     }
 
+    fn dev_fee_for(&self, algo: Algo) -> f32 {
+        dev_fee_for_algo(algo)
+    }
+
     fn build_args(&self, p: &ResolvedProfile, t: &TelemetryBinding) -> Vec<String> {
-        let algo = algo_flag(p.algo).unwrap_or("HEAVYHASH");
+        let algo = algo_flag(p.algo).unwrap_or("KASPA");
         let mut args = vec![
             "--algo".into(),
             algo.into(),
@@ -174,7 +203,7 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "--algo", "HEAVYHASH",
+                "--algo", "KASPA",
                 "--pool", "kaspa.pool:4444",
                 "--user", "kaspa:qaddr.rig1",
                 "--pass", "x",
@@ -182,6 +211,17 @@ mod tests {
                 "--apihost", "127.0.0.1",
             ]
         );
+    }
+
+    #[test]
+    fn supports_new_algos_and_per_algo_fee() {
+        use crate::miner::MinerAdapter;
+        assert!(LolMiner.supports(Algo::Ethash));
+        assert!(LolMiner.supports(Algo::KarlsenHash));
+        assert!(LolMiner.supports(Algo::PyrinHash));
+        assert_eq!(LolMiner.dev_fee_for(Algo::Ethash), 0.7);
+        assert_eq!(LolMiner.dev_fee_for(Algo::KHeavyHash), 0.75);
+        assert_eq!(LolMiner.dev_fee_for(Algo::Autolykos2), 1.5);
     }
 
     #[test]

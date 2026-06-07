@@ -30,8 +30,8 @@ fn candidates(coin_id: &str) -> &'static [&'static str] {
         "xmr" => &["cpuminer-opt"],
         "rvn" => &["kawpowminer"],
         "etc" => &["ethminer"],
-        "kas" => &["lolminer"],
-        "erg" => &["lolminer"],
+        // lolMiner is auto-fetchable and covers these GPU algos.
+        "kas" | "erg" | "kls" | "pyi" | "ethw" | "octa" | "clo" => &["lolminer"],
         "btc" | "ltc" | "doge" => &["monitor"],
         _ => &[],
     }

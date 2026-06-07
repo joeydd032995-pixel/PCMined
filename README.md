@@ -103,6 +103,19 @@ The roster is data-driven — most additions are a single adapter + a single reg
 No core/UI changes are required: fee badges, lottery odds, validation, and the dashboard all
 read from these registries.
 
+## Coins & wallets
+
+Roster: Monero, Ravencoin, Ethereum Classic, **EthereumPoW, Octa Space, Callisto** (EVM/Ethash),
+Kaspa, **Karlsen, Pyrin** (Kaspa-fork CashAddr), Ergo, and Bitcoin/Litecoin/Dogecoin (monitor-only).
+Every coin has a **real checksum** address validator (EIP-55 for EVM chains, the CashAddr polymod
+for the Kaspa family, Base58Check, Monero base-58+Keccak, bech32, Blake2b for Ergo) and a
+**suggested wallet** with an install/open link in the dashboard.
+
+> Wallet note: a desktop app's webview has no browser extensions, so it can't "connect" to
+> MetaMask/Phantom to read an address. The supported, secure flow is: pick the suggested wallet,
+> copy your **public receiving address**, paste it into a profile, and the app validates the
+> checksum before any miner can use it. Private keys are never involved.
+
 ### Packaging & signing
 
 Cross-platform installers are built by `.github/workflows/release.yml` (tauri-action

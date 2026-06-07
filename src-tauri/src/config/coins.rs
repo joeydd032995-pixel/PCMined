@@ -32,6 +32,10 @@ pub struct CoinInfo {
     /// Nominal target block interval in seconds (for lottery odds).
     pub block_time_secs: f64,
     pub default_pools: &'static [PoolDef],
+    /// Suggested consumer wallet for receiving this coin (a desktop webview
+    /// can't connect to a browser-extension wallet, so we suggest + link).
+    pub wallet_name: &'static str,
+    pub wallet_url: &'static str,
 }
 
 const NO_POOLS: &[PoolDef] = &[];
@@ -97,15 +101,22 @@ const ETC_POOLS: &[PoolDef] = &[PoolDef {
     user_template: "{wallet}.{worker}",
 }];
 
+const W_METAMASK: &str = "https://metamask.io/download/";
+
 pub static COINS: &[CoinInfo] = &[
-    CoinInfo { id: "xmr", name: "Monero", algo: Algo::RandomX, monitor_only: false, block_time_secs: 120.0, default_pools: NO_POOLS },
-    CoinInfo { id: "rvn", name: "Ravencoin", algo: Algo::KawPow, monitor_only: false, block_time_secs: 60.0, default_pools: RVN_POOLS },
-    CoinInfo { id: "etc", name: "Ethereum Classic", algo: Algo::EtcHash, monitor_only: false, block_time_secs: 13.0, default_pools: ETC_POOLS },
-    CoinInfo { id: "kas", name: "Kaspa", algo: Algo::KHeavyHash, monitor_only: false, block_time_secs: 1.0, default_pools: KAS_POOLS },
-    CoinInfo { id: "erg", name: "Ergo", algo: Algo::Autolykos2, monitor_only: false, block_time_secs: 120.0, default_pools: ERG_POOLS },
-    CoinInfo { id: "btc", name: "Bitcoin", algo: Algo::Sha256d, monitor_only: true, block_time_secs: 600.0, default_pools: BTC_POOLS },
-    CoinInfo { id: "ltc", name: "Litecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 150.0, default_pools: NO_POOLS },
-    CoinInfo { id: "doge", name: "Dogecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 60.0, default_pools: NO_POOLS },
+    CoinInfo { id: "xmr", name: "Monero", algo: Algo::RandomX, monitor_only: false, block_time_secs: 120.0, default_pools: NO_POOLS, wallet_name: "Cake Wallet / Monero GUI", wallet_url: "https://www.getmonero.org/downloads/" },
+    CoinInfo { id: "rvn", name: "Ravencoin", algo: Algo::KawPow, monitor_only: false, block_time_secs: 60.0, default_pools: RVN_POOLS, wallet_name: "Ravencoin Core", wallet_url: "https://ravencoin.org/wallet/" },
+    CoinInfo { id: "etc", name: "Ethereum Classic", algo: Algo::EtcHash, monitor_only: false, block_time_secs: 13.0, default_pools: ETC_POOLS, wallet_name: "MetaMask", wallet_url: W_METAMASK },
+    CoinInfo { id: "ethw", name: "EthereumPoW", algo: Algo::Ethash, monitor_only: false, block_time_secs: 13.0, default_pools: NO_POOLS, wallet_name: "MetaMask", wallet_url: W_METAMASK },
+    CoinInfo { id: "octa", name: "Octa Space", algo: Algo::Ethash, monitor_only: false, block_time_secs: 16.0, default_pools: NO_POOLS, wallet_name: "MetaMask (custom RPC)", wallet_url: W_METAMASK },
+    CoinInfo { id: "clo", name: "Callisto", algo: Algo::Ethash, monitor_only: false, block_time_secs: 13.0, default_pools: NO_POOLS, wallet_name: "MetaMask (custom RPC)", wallet_url: W_METAMASK },
+    CoinInfo { id: "kas", name: "Kaspa", algo: Algo::KHeavyHash, monitor_only: false, block_time_secs: 1.0, default_pools: KAS_POOLS, wallet_name: "Kasware", wallet_url: "https://www.kasware.xyz/" },
+    CoinInfo { id: "kls", name: "Karlsen", algo: Algo::KarlsenHash, monitor_only: false, block_time_secs: 1.0, default_pools: NO_POOLS, wallet_name: "Karlsen Wallet", wallet_url: "https://karlsencoin.com/" },
+    CoinInfo { id: "pyi", name: "Pyrin", algo: Algo::PyrinHash, monitor_only: false, block_time_secs: 1.0, default_pools: NO_POOLS, wallet_name: "Pyrin Wallet", wallet_url: "https://pyrin.network/" },
+    CoinInfo { id: "erg", name: "Ergo", algo: Algo::Autolykos2, monitor_only: false, block_time_secs: 120.0, default_pools: ERG_POOLS, wallet_name: "Nautilus", wallet_url: "https://nautiluswallet.com/" },
+    CoinInfo { id: "btc", name: "Bitcoin", algo: Algo::Sha256d, monitor_only: true, block_time_secs: 600.0, default_pools: BTC_POOLS, wallet_name: "Sparrow / Electrum", wallet_url: "https://electrum.org/" },
+    CoinInfo { id: "ltc", name: "Litecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 150.0, default_pools: NO_POOLS, wallet_name: "Litecoin Core / Electrum-LTC", wallet_url: "https://litecoin.org/" },
+    CoinInfo { id: "doge", name: "Dogecoin", algo: Algo::Scrypt, monitor_only: true, block_time_secs: 60.0, default_pools: NO_POOLS, wallet_name: "Dogecoin Core / MyDoge", wallet_url: "https://dogecoin.com/" },
 ];
 
 /// Look up a coin by id (case-insensitive).
@@ -125,7 +136,12 @@ pub fn nominal_block_reward(coin_id: &str) -> f64 {
         "xmr" => 0.6,
         "rvn" => 2_500.0,
         "etc" => 2.56,
+        "ethw" => 2.0,
+        "octa" => 0.42,
+        "clo" => 39.0,
         "kas" => 75.0,
+        "kls" => 28.0,
+        "pyi" => 50.0,
         "erg" => 3.0,
         _ => 0.0,
     }

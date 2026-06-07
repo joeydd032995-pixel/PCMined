@@ -51,9 +51,13 @@ pub fn validate(coin: &str, addr: &str) -> AddressCheck {
         "ltc" => validate_ltc(addr),
         "doge" => base58check(addr, &[0x1e, 0x16], "Dogecoin Base58Check"),
         "rvn" => base58check(addr, &[0x3c, 0x7a], "Ravencoin Base58Check"),
-        "etc" => validate_eip55(addr),
+        // EVM chains all share the EIP-55 hex address format.
+        "etc" | "ethw" | "octa" | "clo" => validate_eip55(addr),
         "xmr" => validate_monero(addr),
-        "kas" => validate_kaspa(addr),
+        // Kaspa and its forks share the CashAddr-style scheme (same polymod).
+        "kas" => validate_cashaddr(addr, &["kaspa", "kaspatest", "kaspasim", "kaspadev"], "Kaspa"),
+        "kls" => validate_cashaddr(addr, &["karlsen", "karlsentest"], "Karlsen"),
+        "pyi" => validate_cashaddr(addr, &["pyrin", "pyrintest"], "Pyrin"),
         "erg" => validate_ergo(addr),
         other => AddressCheck::bad(format!("address validation not supported for coin '{other}'")),
     }
@@ -216,23 +220,25 @@ fn kaspa_polymod(values: &[u8]) -> u64 {
     c ^ 1
 }
 
-fn validate_kaspa(addr: &str) -> AddressCheck {
+/// Validate a Kaspa-style CashAddr address (Kaspa and its forks Karlsen, Pyrin
+/// all share the same encoding and polymod, differing only in the prefix).
+fn validate_cashaddr(addr: &str, allowed_prefixes: &[&str], coin: &str) -> AddressCheck {
     let (prefix, data) = match addr.split_once(':') {
         Some(x) => x,
-        None => return AddressCheck::bad("Kaspa address must include a 'kaspa:' prefix"),
+        None => return AddressCheck::bad(format!("{coin} address must include a '{}:' prefix", allowed_prefixes[0])),
     };
-    if !["kaspa", "kaspatest", "kaspasim", "kaspadev"].contains(&prefix) {
-        return AddressCheck::bad(format!("unknown Kaspa network prefix '{prefix}'"));
+    if !allowed_prefixes.contains(&prefix) {
+        return AddressCheck::bad(format!("unknown {coin} network prefix '{prefix}'"));
     }
     let mut data5 = Vec::with_capacity(data.len());
     for &c in data.as_bytes() {
         match KASPA_CHARSET.iter().position(|&x| x == c) {
             Some(p) => data5.push(p as u8),
-            None => return AddressCheck::bad("invalid character in Kaspa address"),
+            None => return AddressCheck::bad(format!("invalid character in {coin} address")),
         }
     }
     if data5.len() < 8 {
-        return AddressCheck::bad("Kaspa address too short");
+        return AddressCheck::bad(format!("{coin} address too short"));
     }
     let (payload5, checksum5) = data5.split_at(data5.len() - 8);
 
@@ -244,9 +250,27 @@ fn validate_kaspa(addr: &str) -> AddressCheck {
 
     let actual = checksum5.iter().fold(0u64, |acc, &g| (acc << 5) | g as u64);
     if expected != actual {
-        return AddressCheck::bad("Kaspa checksum mismatch");
+        return AddressCheck::bad(format!("{coin} checksum mismatch"));
     }
-    AddressCheck::ok("Kaspa CashAddr")
+    AddressCheck::ok(&format!("{coin} CashAddr"))
+}
+
+/// Encode a CashAddr address from a prefix + 5-bit payload (test helper / used
+/// to derive deterministic vectors for the Kaspa-fork coins).
+#[cfg(test)]
+fn encode_cashaddr(prefix: &str, payload5: &[u8]) -> String {
+    let mut input: Vec<u8> = prefix.bytes().map(|b| b & 0x1f).collect();
+    input.push(0);
+    input.extend_from_slice(payload5);
+    input.extend_from_slice(&[0u8; 8]);
+    let checksum = kaspa_polymod(&input);
+    let checksum5: Vec<u8> = (0..8).map(|i| ((checksum >> (5 * (7 - i))) & 0x1f) as u8).collect();
+    let mut out = String::from(prefix);
+    out.push(':');
+    for &g in payload5.iter().chain(checksum5.iter()) {
+        out.push(KASPA_CHARSET[g as usize] as char);
+    }
+    out
 }
 
 // ---- Ergo (Base58 + Blake2b-256) ------------------------------------------
@@ -329,6 +353,38 @@ mod tests {
         assert!(!validate("xmr", BTC_BECH32).valid);
         assert!(!validate("btc", "").valid);
         assert!(!validate("unknowncoin", BTC_P2PKH).valid);
+    }
+
+    #[test]
+    fn cashaddr_forks_validate_under_their_prefixes() {
+        // Take the real Kaspa example's 5-bit payload and re-encode it under the
+        // karlsen/pyrin prefixes (they are Kaspa forks with the same scheme).
+        let (_, data) = KAS.split_once(':').unwrap();
+        let data5: Vec<u8> = data
+            .bytes()
+            .map(|c| KASPA_CHARSET.iter().position(|&x| x == c).unwrap() as u8)
+            .collect();
+        let payload5 = &data5[..data5.len() - 8];
+        for (coin, pfx) in [("kls", "karlsen"), ("pyi", "pyrin")] {
+            let addr = encode_cashaddr(pfx, payload5);
+            let r = validate(coin, &addr);
+            assert!(r.valid, "{coin} {addr} -> {:?}", r.reason);
+            // Wrong network prefix for the coin is rejected.
+            assert!(!validate(coin, &encode_cashaddr("kaspa", payload5)).valid);
+            // A corrupted last char fails the checksum.
+            let mut chars: Vec<char> = addr.chars().collect();
+            let last = chars.len() - 1;
+            chars[last] = if chars[last] == 'q' { 'p' } else { 'q' };
+            assert!(!validate(coin, &chars.into_iter().collect::<String>()).valid);
+        }
+    }
+
+    #[test]
+    fn evm_coins_share_eip55() {
+        for coin in ["ethw", "octa", "clo"] {
+            assert!(validate(coin, ETH_EIP55).valid, "{coin}");
+            assert!(validate(coin, &ETH_EIP55.to_lowercase()).valid);
+        }
     }
 
     #[test]

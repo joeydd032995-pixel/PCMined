@@ -211,10 +211,13 @@ impl Supervisor {
             return Err(StartError::UnsupportedAlgo { miner_id: req.miner_id.clone() });
         }
 
-        if !fee_gate(info.dev_fee_pct, fee_confirmed) {
+        // Use the algorithm-specific dev fee so the gate + confirmation disclose
+        // the exact percentage (lolMiner's fee varies by algo).
+        let dev_fee = adapter.dev_fee_for(req.algo);
+        if !fee_gate(dev_fee, fee_confirmed) {
             return Err(StartError::FeeConfirmationRequired {
                 miner_id: info.id.to_string(),
-                dev_fee_pct: info.dev_fee_pct,
+                dev_fee_pct: dev_fee,
                 source_url: info.source_url.to_string(),
                 license: info.license.to_string(),
             });

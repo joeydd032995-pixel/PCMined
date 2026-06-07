@@ -13,8 +13,11 @@ export type Algo =
   | "sha256d"
   | "kaw_pow"
   | "etc_hash"
+  | "ethash"
   | "k_heavy_hash"
-  | "autolykos2";
+  | "autolykos2"
+  | "karlsen_hash"
+  | "pyrin_hash";
 
 export type TelemetryKind = "http" | "tcp_json_rpc" | "tcp_text" | "stdout";
 
@@ -118,6 +121,9 @@ export interface CoinInfo {
   monitor_only: boolean;
   block_time_secs: number;
   default_pools: PoolDef[];
+  /** Suggested consumer wallet for receiving this coin. */
+  wallet_name: string;
+  wallet_url: string;
 }
 
 export interface PoolConfig {

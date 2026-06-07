@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { open } from "@tauri-apps/plugin-shell";
 import {
   listCoins,
   resolveDefaultMiner,
@@ -111,6 +112,45 @@ export function Dashboard() {
           </button>
         ))}
       </div>
+
+      {/* suggested wallet for receiving this coin */}
+      {coin && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            fontSize: 12,
+            color: "var(--text-1)",
+            background: "var(--bg-1)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "8px 12px",
+          }}
+        >
+          <span style={{ color: "var(--text-2)" }}>Suggested wallet:</span>
+          <strong>{coin.wallet_name}</strong>
+          <button
+            onClick={() => void open(coin.wallet_url)}
+            style={{
+              marginLeft: "auto",
+              padding: "3px 10px",
+              borderRadius: 5,
+              border: "1px solid var(--border)",
+              background: "var(--bg-2)",
+              color: "var(--accent)",
+              cursor: "pointer",
+              fontSize: 12,
+            }}
+          >
+            Install / open ↗
+          </button>
+          <span style={{ color: "var(--text-2)", flexBasis: "100%", fontSize: 10 }}>
+            Paste your receiving address into a profile — it's checksum-validated before use. (A
+            desktop app can't connect to a browser-extension wallet directly.)
+          </span>
+        </div>
+      )}
 
       {/* network + odds */}
       <section
